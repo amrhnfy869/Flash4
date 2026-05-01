@@ -92,7 +92,7 @@ const getGenAI = () => {
   const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
                  (import.meta as any).env?.VITE_GEMINI_API_KEY ||
                  (import.meta as any).env?.GEMINI_API_KEY ||
-                 "";
+                 "AIzaSyC7vpweShVSGpMHwPUIhhh4TV7TlJlgrac"; // Fallback key provided by user
 
   if (!apiKey || apiKey === "undefined" || apiKey === "null" || apiKey.trim() === "") {
     throw new Error("عذراً، مفتاح API غير موجود. يرجى التأكد من إعداد GEMINI_API_KEY في إعدادات البيئة الخاصة بك.");
