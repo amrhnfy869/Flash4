@@ -87,7 +87,13 @@ function useAuth() {
 }
 
 // --- AI Service ---
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const getGenAI = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("خطأ: مفتاح الـ API غير موجود. يرجى التأكد من إعداده في الإعدادات.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 // --- Main Components ---
 
@@ -157,6 +163,7 @@ function AppContent() {
     setError(null);
     setResult('');
     try {
+      const genAI = getGenAI();
       let prompt = "";
       if (mode === 'translate') {
         const sourceLangName = languages.find(l=>l.code===sourceLang)?.name;
