@@ -14,6 +14,40 @@
   --color-brand-accent: #FFF1F1;
 }
 
+@layer base {
+  :root {
+    --brand-bg: #FFFFFF;
+    --brand-text-heading: #1A1A1A;
+    --brand-text-body: #333333;
+    --brand-text-muted: #666666;
+    --brand-border: #EEEEEE;
+    --brand-accent: #FFF1F1;
+  }
+
+  .dark {
+    --brand-bg: #0A0A0A;
+    --brand-text-heading: #FFFFFF;
+    --brand-text-body: #E0E0E0;
+    --brand-text-muted: #A0A0A0;
+    --brand-border: #262626;
+    --brand-accent: #1A0000;
+  }
+
+  body {
+    background-color: var(--brand-bg);
+    color: var(--brand-text-body);
+  }
+}
+
+@theme inline {
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-text-heading: var(--brand-text-heading);
+  --color-brand-text-body: var(--brand-text-body);
+  --color-brand-text-muted: var(--brand-text-muted);
+  --color-brand-border: var(--brand-border);
+  --color-brand-accent: var(--brand-accent);
+}
+
 html {
   scroll-behavior: smooth;
   height: -webkit-fill-available;

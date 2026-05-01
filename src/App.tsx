@@ -13,7 +13,9 @@ import {
   AlertCircle,
   X,
   ArrowRightLeft,
-  ChevronLeft
+  ChevronLeft,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
@@ -226,8 +228,34 @@ function AppContent() {
     document.body.removeChild(element);
   };
 
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = window.localStorage.getItem('faseeh_theme');
+    return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      window.localStorage.setItem('faseeh_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      window.localStorage.setItem('faseeh_theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
   return (
     <div className="min-h-screen bg-brand-bg text-brand-text-body font-sans selection:bg-brand-primary/10 relative" dir="rtl">
+      {/* Theme Toggle Floating Button (Mobile & Desktop) */}
+      <button 
+        onClick={toggleTheme}
+        className="fixed bottom-8 right-8 z-[60] w-14 h-14 bg-brand-primary text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-brand-primary-hover active:scale-95 transition-all group lg:hidden"
+        title="تبديل الوضع"
+      >
+        {isDarkMode ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
+      </button>
+
       {/* Welcome Modal */}
       {showWelcome && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6">
@@ -239,7 +267,7 @@ function AppContent() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl p-10 text-center space-y-8"
+            className="relative w-full max-w-md bg-brand-bg rounded-[40px] shadow-2xl p-10 text-center space-y-8 border border-brand-border"
           >
             <div className="w-20 h-20 bg-brand-accent rounded-full flex items-center justify-center mx-auto shadow-sm">
               <Zap className="w-10 h-10 text-brand-primary fill-brand-primary/10 animate-pulse" />
@@ -259,8 +287,8 @@ function AppContent() {
       )}
 
       {/* Background Decorations */}
-      <div className="fixed -bottom-24 -left-24 w-96 h-96 bg-red-50 rounded-full blur-3xl opacity-30 pointer-events-none z-0 will-change-transform"></div>
-      <div className="fixed top-24 -right-24 w-96 h-96 bg-red-50 rounded-full blur-3xl opacity-30 pointer-events-none z-0 will-change-transform"></div>
+      <div className="fixed -bottom-24 -left-24 w-96 h-96 bg-brand-accent rounded-full blur-3xl opacity-30 pointer-events-none z-0 will-change-transform"></div>
+      <div className="fixed top-24 -right-24 w-96 h-96 bg-brand-accent rounded-full blur-3xl opacity-30 pointer-events-none z-0 will-change-transform"></div>
 
       {/* Header */}
       <header className="sticky top-0 z-10 bg-brand-bg/80 backdrop-blur-md px-6 md:px-12 py-6">
@@ -271,43 +299,51 @@ function AppContent() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-brand-text-heading italic">فلاش</h1>
           </div>
-          <nav className="hidden md:flex gap-8 text-sm font-medium text-brand-text-muted items-center">
-            <a href="#" className="hover:text-brand-primary transition-colors">الرئيسية</a>
-            <a href="#how-it-works" className="hover:text-brand-primary transition-colors">كيف يعمل؟</a>
-            {user ? (
-              <div className="flex items-center gap-6">
-                <button 
-                  onClick={() => setShowHistory(!showHistory)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-full transition-all text-xs font-bold",
-                    showHistory ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" : "hover:bg-brand-accent text-brand-text-muted hover:text-brand-primary"
-                  )}
-                >
-                  <Zap className={cn("w-4 h-4", showHistory ? "fill-white" : "")} />
-                  السجل
-                </button>
-                <div className="flex items-center gap-3 pl-4 border-l border-brand-border/30">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-primary/20 shadow-sm">
-                    <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} alt={user.displayName || ''} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                  </div>
+          <div className="flex items-center gap-6">
+            <nav className="hidden md:flex gap-8 text-sm font-medium text-brand-text-muted items-center">
+              <a href="#" className="hover:text-brand-primary transition-colors">الرئيسية</a>
+              <a href="#how-it-works" className="hover:text-brand-primary transition-colors">كيف يعمل؟</a>
+              {user ? (
+                <div className="flex items-center gap-6">
                   <button 
-                    onClick={logout}
-                    className="hover:text-red-500 transition-colors text-[10px] font-bold uppercase tracking-wider"
+                    onClick={() => setShowHistory(!showHistory)}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-full transition-all text-xs font-bold",
+                      showHistory ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" : "hover:bg-brand-accent text-brand-text-muted hover:text-brand-primary"
+                    )}
                   >
-                    خروج
+                    <Zap className={cn("w-4 h-4", showHistory ? "fill-white" : "")} />
+                    السجل
                   </button>
+                  <div className="flex items-center gap-3 pl-4 border-l border-brand-border/30">
+                    <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-primary/20 shadow-sm">
+                      <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} alt={user.displayName || ''} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                    </div>
+                    <button 
+                      onClick={logout}
+                      className="hover:text-red-500 transition-colors text-[10px] font-bold uppercase tracking-wider"
+                    >
+                      خروج
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <button 
-                onClick={() => setShowAuthModal(true)}
-                disabled={loading}
-                className="hover:text-brand-primary transition-colors text-brand-text-heading border-b-2 border-brand-primary/30 disabled:opacity-50"
-              >
-                {loading ? 'جاري التحميل...' : 'تسجيل الدخول'}
-              </button>
-            )}
-          </nav>
+              ) : (
+                <button 
+                  onClick={() => setShowAuthModal(true)}
+                  disabled={loading}
+                  className="hover:text-brand-primary transition-colors text-brand-text-heading border-b-2 border-brand-primary/30 disabled:opacity-50"
+                >
+                  {loading ? 'جاري التحميل...' : 'تسجيل الدخول'}
+                </button>
+              )}
+            </nav>
+            <button 
+              onClick={toggleTheme}
+              className="p-2.5 rounded-xl bg-brand-accent text-brand-primary hover:bg-brand-primary hover:text-white transition-all hidden md:flex"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -326,7 +362,7 @@ function AppContent() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-[32px] shadow-2xl overflow-hidden p-8"
+              className="relative w-full max-w-md bg-brand-bg rounded-[32px] shadow-2xl overflow-hidden p-8 border border-brand-border"
             >
               <button 
                 onClick={() => setShowAuthModal(false)}
@@ -397,7 +433,7 @@ function AppContent() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-[32px] shadow-2xl flex flex-col max-h-[80vh]"
+              className="relative w-full max-w-2xl bg-brand-bg rounded-[32px] shadow-2xl flex flex-col max-h-[80vh] border border-brand-border"
             >
               <div className="p-8 border-b border-brand-border/30 flex items-center justify-between">
                 <h3 className="text-2xl font-bold text-brand-text-heading italic flex items-center gap-3">
@@ -483,7 +519,7 @@ function AppContent() {
 
             {/* Service Toggle */}
             <div className="flex justify-center">
-              <div className="bg-white/60 backdrop-blur-sm p-1.5 rounded-[24px] border border-brand-border/30 flex shadow-sm w-full max-w-md">
+              <div className="bg-brand-bg/60 backdrop-blur-sm p-1.5 rounded-[24px] border border-brand-border/30 flex shadow-sm w-full max-w-md">
                 <button
                   onClick={() => setMode('translate')}
                   className={cn(
@@ -528,7 +564,7 @@ function AppContent() {
                     <select 
                       value={sourceLang}
                       onChange={(e) => setSourceLang(e.target.value)}
-                      className="w-full bg-white border border-brand-border/30 rounded-2xl p-4 text-sm font-bold text-brand-text-heading focus:ring-2 focus:ring-brand-primary/20 appearance-none text-right cursor-pointer shadow-sm"
+                      className="w-full bg-brand-bg border border-brand-border/30 rounded-2xl p-4 text-sm font-bold text-brand-text-heading focus:ring-2 focus:ring-brand-primary/20 appearance-none text-right cursor-pointer shadow-sm"
                     >
                       {languages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
                     </select>
@@ -546,7 +582,7 @@ function AppContent() {
                     <select 
                       value={targetLang}
                       onChange={(e) => setTargetLang(e.target.value)}
-                      className="w-full bg-white border border-brand-border/30 rounded-2xl p-4 text-sm font-bold text-brand-text-heading focus:ring-2 focus:ring-brand-primary/20 appearance-none text-right cursor-pointer shadow-sm"
+                      className="w-full bg-brand-bg border border-brand-border/30 rounded-2xl p-4 text-sm font-bold text-brand-text-heading focus:ring-2 focus:ring-brand-primary/20 appearance-none text-right cursor-pointer shadow-sm"
                     >
                       {languages.filter(l => l.code !== 'auto').map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
                     </select>
@@ -564,7 +600,7 @@ function AppContent() {
                 <motion.div 
                    initial={{ opacity: 0, y: 20 }}
                    animate={{ opacity: 1, y: 0 }}
-                   className="bg-white/60 backdrop-blur-sm border border-brand-border/30 rounded-[40px] p-8 md:p-12 space-y-8 flex flex-col shadow-lg"
+                   className="bg-brand-bg/60 backdrop-blur-sm border border-brand-border/30 rounded-[40px] p-8 md:p-12 space-y-8 flex flex-col shadow-lg"
                  >
                   <div className="flex items-center gap-4 mb-2">
                     <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center">
@@ -583,7 +619,7 @@ function AppContent() {
                     value={sourceText}
                     onChange={(e) => setSourceText(e.target.value)}
                     placeholder={mode === 'translate' ? "ادخل النص هنا..." : "ادخل نصك هنا للمراجعة اللغوية..."}
-                    className="flex-1 w-full min-h-[250px] bg-white/40 border border-brand-border/10 rounded-3xl p-8 text-lg text-brand-text-body placeholder:text-brand-text-muted/50 resize-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary text-right leading-relaxed"
+                    className="flex-1 w-full min-h-[250px] bg-brand-bg/40 border border-brand-border/10 rounded-3xl p-8 text-lg text-brand-text-body placeholder:text-brand-text-muted/50 resize-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary text-right leading-relaxed"
                     dir="auto"
                   />
                   <button
@@ -629,8 +665,8 @@ function AppContent() {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white/80 backdrop-blur-md border border-brand-border rounded-[40px] shadow-2xl shadow-brand-primary/5 overflow-hidden">
-                    <div className="border-b border-brand-border/30 p-6 md:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 bg-white/40">
+                  <div className="bg-brand-bg/80 backdrop-blur-md border border-brand-border rounded-[40px] shadow-2xl shadow-brand-primary/5 overflow-hidden">
+                    <div className="border-b border-brand-border/30 p-6 md:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 bg-brand-bg/40">
                       <h3 className="font-bold text-xl text-brand-text-heading flex items-center gap-3">
                         <div className="w-8 h-8 bg-green-50 rounded-full flex items-center justify-center">
                           <Check className="w-5 h-5 text-green-500" />
@@ -683,7 +719,7 @@ function AppContent() {
           {/* Features Row */}
           {!result && !error && !isLoading && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-4xl mx-auto pt-8">
-              <div className="bg-white/40 p-8 rounded-[32px] border border-white/60 flex items-center gap-5 shadow-sm hover:translate-y-[-4px] transition-transform">
+              <div className="bg-brand-bg/40 p-8 rounded-[32px] border border-brand-border flex items-center gap-5 shadow-sm hover:translate-y-[-4px] transition-transform">
                 <div className="w-14 h-14 bg-brand-accent rounded-2xl flex items-center justify-center shrink-0">
                   <span className="text-brand-primary font-bold text-lg">01</span>
                 </div>
@@ -692,7 +728,7 @@ function AppContent() {
                   <p className="text-sm text-brand-text-muted">ترجمة احترافية وتدقيق لغوي دقيق في مكان واحد</p>
                 </div>
               </div>
-              <div className="bg-white/40 p-8 rounded-[32px] border border-white/60 flex items-center gap-5 shadow-sm hover:translate-y-[-4px] transition-transform">
+              <div className="bg-brand-bg/40 p-8 rounded-[32px] border border-brand-border flex items-center gap-5 shadow-sm hover:translate-y-[-4px] transition-transform">
                 <div className="w-14 h-14 bg-brand-accent rounded-2xl flex items-center justify-center shrink-0">
                   <span className="text-brand-primary font-bold text-lg">02</span>
                 </div>
@@ -701,7 +737,7 @@ function AppContent() {
                   <p className="text-sm text-brand-text-muted">معالجة فورية وعالية الدقة للنصوص والفقرات</p>
                 </div>
               </div>
-              <div className="bg-white/40 p-8 rounded-[32px] border border-white/60 flex items-center gap-5 shadow-sm hover:translate-y-[-4px] transition-transform">
+              <div className="bg-brand-bg/40 p-8 rounded-[32px] border border-brand-border flex items-center gap-5 shadow-sm hover:translate-y-[-4px] transition-transform">
                 <div className="w-14 h-14 bg-brand-accent rounded-2xl flex items-center justify-center shrink-0">
                   <span className="text-brand-primary font-bold text-lg">03</span>
                 </div>
@@ -722,7 +758,7 @@ function AppContent() {
                 exit={{ opacity: 0, scale: 0.95, height: 0 }}
                 className="w-full max-w-4xl mx-auto overflow-hidden"
               >
-                <div className="bg-white/40 backdrop-blur-sm border border-brand-border/30 rounded-[40px] p-8 md:p-10 space-y-8 shadow-inner">
+                <div className="bg-brand-bg/40 backdrop-blur-sm border border-brand-border/30 rounded-[40px] p-8 md:p-10 space-y-8 shadow-inner">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-2xl text-brand-text-heading italic flex items-center gap-3">
                       <Zap className="w-6 h-6 text-brand-primary fill-brand-primary/10" />
@@ -745,7 +781,7 @@ function AppContent() {
                           setShowHistory(false);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="p-6 bg-white/80 rounded-[32px] border border-brand-border/20 hover:border-brand-primary/40 transition-all cursor-pointer group flex items-center gap-5"
+                        className="p-6 bg-brand-bg/80 rounded-[32px] border border-brand-border/20 hover:border-brand-primary/40 transition-all cursor-pointer group flex items-center gap-5"
                       >
                         <div className="w-14 h-14 bg-brand-accent rounded-2xl flex items-center justify-center group-hover:bg-brand-primary/10 transition-colors shrink-0">
                           <Zap className="w-7 h-7 text-brand-primary" />
