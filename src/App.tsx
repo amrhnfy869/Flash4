@@ -92,45 +92,85 @@ const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 async function extractTextFromImage(base64Data: string, mimeType: string): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent([
-      { text: "Extract all text from this image exactly as it appears. Preserve the layout and structure if possible. If the language is Arabic, ensure it is transcribed correctly." },
-      { inlineData: { data: base64Data, mimeType } }
-    ]);
-    const response = await result.response;
-    return response.text() || "لم يتم العثور على نص.";
-  } catch (error) {
+    const response = await genAI.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: {
+        parts: [
+          { text: "Extract all text and symbols from this image with extreme accuracy. Transcribe every single character, including punctuation, mathematical symbols, special characters, and formatting markers, exactly as seen. Maintain the original layout and structure. If the text is Arabic, pay extreme attention to diacritics and rare characters. Do not miss any small detail or faint symbol. Provide ONLY the text." },
+          { inlineData: { data: base64Data, mimeType } }
+        ]
+      },
+      config: {
+        temperature: 0,
+        topP: 0.1,
+        topK: 1,
+      }
+    });
+    
+    if (!response.text) {
+      throw new Error("لم يستطع النموذج العثور على أي نص في هذه الصورة.");
+    }
+    
+    return response.text;
+  } catch (error: any) {
     console.error("Gemini OCR Error:", error);
-    throw new Error("فشل استخراج النص من الصورة.");
+    if (error.message?.includes("safety")) {
+      throw new Error("عذراً، تعذر استخراج النص بسبب قيود سياسة السلامة.");
+    }
+    throw new Error(`فشل استخراج النص من الصورة: ${error.message || "خطأ غير معروف"}`);
   }
 }
 
 async function extractTextFromPDFPages(images: { data: string; mimeType: string }[]): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const contentParts = images.map(img => ({
       inlineData: { data: img.data, mimeType: img.mimeType }
     }));
 
-    const result = await model.generateContent([
-      { text: "Extract and synthesize all text from these PDF page images. Combine them into a single coherent document. If the language is Arabic, ensure it is transcribed correctly." },
-      ...contentParts
-    ]);
-    const response = await result.response;
-    return response.text() || "لم يتم العثور على نص.";
-  } catch (error) {
+    const response = await genAI.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: {
+        parts: [
+          { text: "You are a master-level OCR engine specializing in symbol-dense documents. Extract all text and symbols from these PDF pages with absolute fidelity. Ensure every special character, mathematical symbol, and punctuation mark is preserved. If parts are in Arabic, focus on perfect character calibration and right-to-left flow. Synthesize everything into a single document while strictly maintaining logical indentation and structure. Provide only the raw extracted content without meta-talk." },
+          ...contentParts
+        ]
+      },
+      config: {
+        temperature: 0,
+        topP: 0.1,
+        topK: 1,
+      }
+    });
+    
+    if (!response.text) {
+      throw new Error("لم يستطع النموذج العثور على أي نص في ملف الـ PDF.");
+    }
+    
+    return response.text;
+  } catch (error: any) {
     console.error("Gemini PDF OCR Error:", error);
-    throw new Error("فشل استخراج النص من ملف PDF.");
+    if (error.message?.includes("safety")) {
+      throw new Error("عذراً، تعذر استخراج النص بسبب قيود سياسة السلامة.");
+    }
+    throw new Error(`فشل استخراج النص من ملف PDF: ${error.message || "خطأ غير معروف"}`);
   }
 }
 
 // --- Parsers ---
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 async function parseWordFile(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const result = await mammoth.extractRawText({ arrayBuffer });
-  return result.value;
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    if (!result.value || result.value.trim() === "") {
+      throw new Error("لم يتم العثور على نص في ملف DOCX.");
+    }
+    return result.value;
+  } catch (error: any) {
+    console.error("Mammoth Error:", error);
+    throw new Error(`فشل استخراج النص من ملف DOCX: ${error.message || "خطأ غير معروف"}`);
+  }
 }
 
 async function pdfToImages(file: File): Promise<{ data: string; mimeType: string }[]> {
@@ -146,7 +186,7 @@ async function pdfToImages(file: File): Promise<{ data: string; mimeType: string
 
   for (let i = 1; i <= numPages; i++) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 2.0 });
+    const viewport = page.getViewport({ scale: 3.0 });
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
 
@@ -154,7 +194,7 @@ async function pdfToImages(file: File): Promise<{ data: string; mimeType: string
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       await page.render({ canvasContext: context, viewport }).promise;
-      const base64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
+      const base64 = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
       images.push({ data: base64, mimeType: "image/jpeg" });
     }
   }
