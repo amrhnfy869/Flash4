@@ -29,6 +29,9 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
 // --- Auth Service (Local Storage Based) ---
 interface LocalUser {
   displayName: string;
@@ -156,6 +159,37 @@ async function extractTextFromPDFPages(images: { data: string; mimeType: string 
   }
 }
 
+async function extractTextFromDocx(base64Data: string): Promise<string> {
+  try {
+    const response = await genAI.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: {
+        parts: [
+          { text: "You are an expert at document reconstruction. Extract all text, tables, and symbols from this Word document with absolute precision. Maintain the original formatting, hierarchical structure, and layout. If the content is in Arabic, ensure perfect character accuracy and right-to-left flow. Provide ONLY the extracted text in a clean Markdown format." },
+          { inlineData: { data: base64Data, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } }
+        ]
+      },
+      config: {
+        temperature: 0,
+        topP: 0.1,
+        topK: 1,
+      }
+    });
+    
+    if (!response.text) {
+      throw new Error("لم يستطع النموذج العثور على أي نص في ملف الـ Word.");
+    }
+    
+    return response.text;
+  } catch (error: any) {
+    console.error("Gemini DOCX OCR Error:", error);
+    if (error.message?.includes("safety")) {
+      throw new Error("عذراً، تعذر استخراج النص بسبب قيود سياسة السلامة.");
+    }
+    throw new Error(`فشل استخراج النص من ملف Word: ${error.message || "خطأ غير معروف"}`);
+  }
+}
+
 // --- Parsers ---
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -216,6 +250,35 @@ function AppContent() {
   const [result, setResult] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
+  const [history, setHistory] = useState<{ name: string; date: string; content: string }[]>([]);
+
+  useEffect(() => {
+    const savedHistory = window.localStorage.getItem('flash_history');
+    if (savedHistory) {
+      setHistory(JSON.parse(savedHistory));
+    }
+  }, []);
+
+  useEffect(() => {
+    let timer: any;
+    if (isLoading && estimatedTime && estimatedTime > 0) {
+      timer = setInterval(() => {
+        setEstimatedTime(prev => (prev && prev > 1 ? prev - 1 : prev));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isLoading, estimatedTime]);
+
+  const addToHistory = (name: string, content: string) => {
+    const newItem = {
+      name,
+      content,
+      date: new Date().toLocaleString('ar-EG')
+    };
+    const newHistory = [newItem, ...history].slice(0, 5);
+    setHistory(newHistory);
+    window.localStorage.setItem('flash_history', JSON.stringify(newHistory));
+  };
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -289,16 +352,24 @@ function AppContent() {
         const pageImages = await pdfToImages(file);
         extractedText = await extractTextFromPDFPages(pageImages);
       } else if (file.type.includes('wordprocessingml')) {
-        extractedText = await parseWordFile(file);
+        const readerDataUrl = new FileReader();
+        const b64 = await new Promise<string>((resolve) => {
+          readerDataUrl.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+          readerDataUrl.readAsDataURL(file);
+        });
+        extractedText = await extractTextFromDocx(b64);
       }
 
       setResult(extractedText);
+      addToHistory(file.name, extractedText);
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء معالجة الملف.');
     } finally {
       setIsLoading(false);
     }
   };
+
+  const [showHistory, setShowHistory] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(result);
@@ -361,23 +432,32 @@ function AppContent() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-brand-text-heading italic">فلاش</h1>
           </div>
-          <nav className="hidden md:flex gap-8 text-sm font-medium text-brand-text-muted">
+          <nav className="hidden md:flex gap-8 text-sm font-medium text-brand-text-muted items-center">
             <a href="#" className="hover:text-brand-primary transition-colors">الرئيسية</a>
             <a href="#how-it-works" className="hover:text-brand-primary transition-colors">كيف يعمل؟</a>
             {user ? (
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 px-3 py-1 bg-brand-accent rounded-full border border-brand-border/50">
-                  <div className="w-6 h-6 rounded-full overflow-hidden border border-brand-primary/20">
-                    <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} alt={user.displayName || ''} referrerPolicy="no-referrer" />
-                  </div>
-                  <span className="text-brand-text-heading font-bold text-xs">{user.displayName}</span>
-                </div>
+              <div className="flex items-center gap-6">
                 <button 
-                  onClick={logout}
-                  className="hover:text-red-500 transition-colors text-xs font-bold uppercase tracking-tighter"
+                  onClick={() => setShowHistory(!showHistory)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full transition-all text-xs font-bold",
+                    showHistory ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" : "hover:bg-brand-accent text-brand-text-muted hover:text-brand-primary"
+                  )}
                 >
-                  خروج
+                  <Zap className={cn("w-4 h-4", showHistory ? "fill-white" : "")} />
+                  السجل
                 </button>
+                <div className="flex items-center gap-3 pl-4 border-l border-brand-border/30">
+                  <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-primary/20 shadow-sm">
+                    <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} alt={user.displayName || ''} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                  </div>
+                  <button 
+                    onClick={logout}
+                    className="hover:text-red-500 transition-colors text-[10px] font-bold uppercase tracking-wider"
+                  >
+                    خروج
+                  </button>
+                </div>
               </div>
             ) : (
               <button 
@@ -570,15 +650,17 @@ function AppContent() {
               <motion.div
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.995 }}
-                {...getRootProps()}
-                className={cn(
-                  "border-2 border-dashed rounded-[40px] p-8 md:p-16 transition-all cursor-pointer text-center space-y-8 group relative overflow-hidden",
-                  isDragActive 
-                    ? "border-brand-primary bg-brand-primary/5 shadow-inner" 
-                    : "border-brand-border bg-white/60 hover:border-brand-primary/50 hover:bg-white/80"
-                )}
               >
-                <input {...getInputProps()} />
+                <div 
+                  {...getRootProps()}
+                  className={cn(
+                    "border-2 border-dashed rounded-[40px] p-8 md:p-16 transition-all cursor-pointer text-center space-y-8 group relative overflow-hidden",
+                    isDragActive 
+                      ? "border-brand-primary bg-brand-primary/5 shadow-inner" 
+                      : "border-brand-border bg-white/60 hover:border-brand-primary/50 hover:bg-white/80"
+                  )}
+                >
+                  <input {...getInputProps()} />
                 <div className="w-20 h-20 md:w-24 md:h-24 bg-brand-accent rounded-full flex items-center justify-center mx-auto group-hover:bg-red-100 transition-colors shadow-sm">
                   <Zap className="w-10 h-10 md:w-12 md:h-12 text-brand-primary fill-brand-primary/10" />
                 </div>
@@ -591,8 +673,9 @@ function AppContent() {
                     </span>
                   </div>
                 </div>
-              </motion.div>
-            ) : (
+              </div>
+            </motion.div>
+          ) : (
               <motion.div 
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -689,9 +772,11 @@ function AppContent() {
                     </div>
                     <div className="p-8 md:p-12">
                       <div className="bg-brand-bg/30 rounded-3xl p-6 border border-brand-border/20">
-                        <pre className="whitespace-pre-wrap font-sans text-lg leading-relaxed text-brand-text-body">
-                          {result}
-                        </pre>
+                        <div className="markdown-body font-sans text-lg leading-relaxed text-brand-text-body space-y-4" dir="auto">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {result}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -732,6 +817,56 @@ function AppContent() {
               </div>
             </div>
           )}
+
+          {/* History Section */}
+          <AnimatePresence>
+            {showHistory && user && history.length > 0 && (
+              <motion.section 
+                initial={{ opacity: 0, scale: 0.95, height: 0 }}
+                animate={{ opacity: 1, scale: 1, height: 'auto' }}
+                exit={{ opacity: 0, scale: 0.95, height: 0 }}
+                className="w-full max-w-4xl mx-auto overflow-hidden"
+              >
+                <div className="bg-white/40 backdrop-blur-sm border border-brand-border/30 rounded-[40px] p-8 md:p-10 space-y-8 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-2xl text-brand-text-heading italic flex items-center gap-3">
+                      <Zap className="w-6 h-6 text-brand-primary fill-brand-primary/10" />
+                      سجل استخراجك
+                    </h3>
+                    <button 
+                      onClick={() => setShowHistory(false)}
+                      className="text-sm font-bold text-brand-text-muted hover:text-brand-primary transition-colors"
+                    >
+                      إغلاق
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {history.map((item, idx) => (
+                      <motion.div 
+                        key={idx}
+                        whileHover={{ y: -4, boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        onClick={() => {
+                          setResult(item.content);
+                          setFile({ name: item.name, size: 0, type: 'text/plain' } as any);
+                          setShowHistory(false);
+                          window.scrollTo({ top: 1000, behavior: 'smooth' });
+                        }}
+                        className="p-6 bg-white/80 rounded-[32px] border border-brand-border/20 hover:border-brand-primary/40 transition-all cursor-pointer group flex items-center gap-5"
+                      >
+                        <div className="w-14 h-14 bg-brand-accent rounded-2xl flex items-center justify-center group-hover:bg-brand-primary/10 transition-colors shrink-0">
+                          <FileText className="w-7 h-7 text-brand-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-brand-text-heading text-base truncate">{item.name}</p>
+                          <p className="text-[11px] text-brand-text-muted font-bold uppercase tracking-wider mt-1 opacity-60">{item.date}</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </motion.section>
+            )}
+          </AnimatePresence>
 
           {/* How It Works Section */}
           <section id="how-it-works" className="w-full max-w-5xl mx-auto py-20 border-t border-brand-border/20">
