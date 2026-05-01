@@ -1,20 +1,54 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# فلاش - Flash ⚡️
 
-# Run and deploy your AI Studio app
+**فلاش** هو رفيقك الذكي للخدمات اللغوية، يقدم ترجمة فورية واحترافية بالإضافة إلى خدمة التدقيق اللغوي باستخدام تقنيات الذكاء الاصطناعي (Gemini 2.0 Flash).
 
-This contains everything you need to run your app locally.
+## المميزات ✨
 
-View your app in AI Studio: https://ai.studio/apps/3586eeca-6b73-4040-9e58-65d272f6e2f2
+*   **الترجمة الذكية:** ترجمة النصوص بين أكثر من 50 لغة بدقة عالية مع الحفاظ على السياق.
+*   **التدقيق اللغوي:** مراجعة النصوص وتصحيح الأخطاء الإملائية والنحوية وتطوير الأسلوب.
+*   **سرعة فائقة:** الحصول على النتائج في ثوانٍ معدودة.
+*   **سجل العمليات:** حفظ نتائجك السابقة للرجوع إليها في أي وقت.
+*   **تصميم عصري:** واجهة مستخدم أنيقة وسهلة الاستخدام تدعم الوضع الليلي والنهاري.
 
-## Run Locally
+## اللغات المدعومة 🌍
 
-**Prerequisites:**  Node.js
+يدعم التطبيق الترجمة من وإلى العديد من اللغات العالمية الكبرى مثل:
+*   العربية (Arabic)
+*   الإنجليزية (English)
+*   التركية (Turkish)
+*   الفرنسية (French)
+*   الألمانية (German)
+*   الإسبانية (Spanish)
+*   والعديد من اللغات الأخرى...
 
+## التقنيات المستخدمة 🛠️
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+*   **React 19**
+*   **Vite**
+*   **Tailwind CSS 4**
+*   **Google Gemini API** (Gemini 2.0 Flash)
+*   **Lucide Icons**
+*   **Framer Motion**
+
+---
+
+# Flash ⚡️
+
+**Flash** is your smart linguistic companion, providing instant professional translation and proofreading services using AI (Gemini 2.0 Flash).
+
+## Features ✨
+
+*   **Smart Translation:** High-accuracy text translation across 50+ languages while preserving context.
+*   **Linguistic Proofreading:** Grammar, spelling, and style corrections.
+*   **Ultra Speed:** Get results in seconds.
+*   **Activity History:** Save your previous results for quick access.
+*   **Modern Design:** Elegant and user-friendly interface.
+
+## Technologies 🛠️
+
+*   **React 19**
+*   **Vite**
+*   **Tailwind CSS 4**
+*   **Google Gemini API**
+*   **Lucide Icons**
+*   **Framer Motion**
