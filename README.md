@@ -30,6 +30,10 @@
 *   **Lucide Icons**
 *   **Framer Motion**
 
+## ملاحظة هامة ⚖️
+
+يتطلب التطبيق مفتاح API لخدمات Gemini. يرجى التأكد من ضبط متغير البيئة `GEMINI_API_KEY` في إعدادات مشروعك (سواء في AI Studio أو Vercel أو GitHub).
+
 ---
 
 # Flash ⚡️
