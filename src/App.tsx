@@ -92,18 +92,13 @@ const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 async function extractTextFromImage(base64Data: string, mimeType: string): Promise<string> {
   try {
-    const response = await genAI.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: [
-        {
-          parts: [
-            { text: "Extract all text from this image exactly as it appears. Preserve the layout and structure if possible. If the language is Arabic, ensure it is transcribed correctly." },
-            { inlineData: { data: base64Data, mimeType } }
-          ]
-        }
-      ]
-    });
-    return response.text || "لم يتم العثور على نص.";
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent([
+      { text: "Extract all text from this image exactly as it appears. Preserve the layout and structure if possible. If the language is Arabic, ensure it is transcribed correctly." },
+      { inlineData: { data: base64Data, mimeType } }
+    ]);
+    const response = await result.response;
+    return response.text() || "لم يتم العثور على نص.";
   } catch (error) {
     console.error("Gemini OCR Error:", error);
     throw new Error("فشل استخراج النص من الصورة.");
@@ -112,22 +107,17 @@ async function extractTextFromImage(base64Data: string, mimeType: string): Promi
 
 async function extractTextFromPDFPages(images: { data: string; mimeType: string }[]): Promise<string> {
   try {
-    const contentsParts = images.map(img => ({
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const contentParts = images.map(img => ({
       inlineData: { data: img.data, mimeType: img.mimeType }
     }));
 
-    const response = await genAI.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: [
-        {
-          parts: [
-            { text: "Extract and synthesize all text from these PDF page images. Combine them into a single coherent document. If the language is Arabic, ensure it is transcribed correctly." },
-            ...contentsParts
-          ]
-        }
-      ]
-    });
-    return response.text || "لم يتم العثور على نص.";
+    const result = await model.generateContent([
+      { text: "Extract and synthesize all text from these PDF page images. Combine them into a single coherent document. If the language is Arabic, ensure it is transcribed correctly." },
+      ...contentParts
+    ]);
+    const response = await result.response;
+    return response.text() || "لم يتم العثور على نص.";
   } catch (error) {
     console.error("Gemini PDF OCR Error:", error);
     throw new Error("فشل استخراج النص من ملف PDF.");
