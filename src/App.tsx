@@ -4,23 +4,19 @@
  */
 
 import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
-import { useDropzone } from 'react-dropzone';
 import { 
   Zap, 
-  Image as ImageIcon, 
-  Upload, 
   Copy, 
   Check, 
   Download, 
   Loader2, 
   AlertCircle,
   X,
-  FileText
+  ArrowRightLeft,
+  ChevronLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
-import * as mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -53,7 +49,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = window.localStorage.getItem('flash_user');
+    const savedUser = window.localStorage.getItem('faseeh_user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
@@ -67,12 +63,12 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`
     };
     setUser(newUser);
-    window.localStorage.setItem('flash_user', JSON.stringify(newUser));
+    window.localStorage.setItem('faseeh_user', JSON.stringify(newUser));
   };
 
   const logout = () => {
     setUser(null);
-    window.localStorage.removeItem('flash_user');
+    window.localStorage.removeItem('faseeh_user');
   };
 
   return (
@@ -93,148 +89,6 @@ function useAuth() {
 // --- AI Service ---
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
-async function extractTextFromImage(base64Data: string, mimeType: string): Promise<string> {
-  try {
-    const response = await genAI.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: {
-        parts: [
-          { text: "Extract all text and symbols from this image with extreme accuracy. Transcribe every single character, including punctuation, mathematical symbols, special characters, and formatting markers, exactly as seen. Maintain the original layout and structure. If the text is Arabic, pay extreme attention to diacritics and rare characters. Do not miss any small detail or faint symbol. Provide ONLY the text." },
-          { inlineData: { data: base64Data, mimeType } }
-        ]
-      },
-      config: {
-        temperature: 0,
-        topP: 0.1,
-        topK: 1,
-      }
-    });
-    
-    if (!response.text) {
-      throw new Error("لم يستطع النموذج العثور على أي نص في هذه الصورة.");
-    }
-    
-    return response.text;
-  } catch (error: any) {
-    console.error("Gemini OCR Error:", error);
-    if (error.message?.includes("safety")) {
-      throw new Error("عذراً، تعذر استخراج النص بسبب قيود سياسة السلامة.");
-    }
-    throw new Error(`فشل استخراج النص من الصورة: ${error.message || "خطأ غير معروف"}`);
-  }
-}
-
-async function extractTextFromPDFPages(images: { data: string; mimeType: string }[]): Promise<string> {
-  try {
-    const contentParts = images.map(img => ({
-      inlineData: { data: img.data, mimeType: img.mimeType }
-    }));
-
-    const response = await genAI.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: {
-        parts: [
-          { text: "You are a master-level OCR engine specializing in symbol-dense documents. Extract all text and symbols from these PDF pages with absolute fidelity. Ensure every special character, mathematical symbol, and punctuation mark is preserved. If parts are in Arabic, focus on perfect character calibration and right-to-left flow. Synthesize everything into a single document while strictly maintaining logical indentation and structure. Provide only the raw extracted content without meta-talk." },
-          ...contentParts
-        ]
-      },
-      config: {
-        temperature: 0,
-        topP: 0.1,
-        topK: 1,
-      }
-    });
-    
-    if (!response.text) {
-      throw new Error("لم يستطع النموذج العثور على أي نص في ملف الـ PDF.");
-    }
-    
-    return response.text;
-  } catch (error: any) {
-    console.error("Gemini PDF OCR Error:", error);
-    if (error.message?.includes("safety")) {
-      throw new Error("عذراً، تعذر استخراج النص بسبب قيود سياسة السلامة.");
-    }
-    throw new Error(`فشل استخراج النص من ملف PDF: ${error.message || "خطأ غير معروف"}`);
-  }
-}
-
-async function extractTextFromDocx(base64Data: string): Promise<string> {
-  try {
-    const response = await genAI.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: {
-        parts: [
-          { text: "You are an expert at document reconstruction. Extract all text, tables, and symbols from this Word document with absolute precision. Maintain the original formatting, hierarchical structure, and layout. If the content is in Arabic, ensure perfect character accuracy and right-to-left flow. Provide ONLY the extracted text in a clean Markdown format." },
-          { inlineData: { data: base64Data, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } }
-        ]
-      },
-      config: {
-        temperature: 0,
-        topP: 0.1,
-        topK: 1,
-      }
-    });
-    
-    if (!response.text) {
-      throw new Error("لم يستطع النموذج العثور على أي نص في ملف الـ Word.");
-    }
-    
-    return response.text;
-  } catch (error: any) {
-    console.error("Gemini DOCX OCR Error:", error);
-    if (error.message?.includes("safety")) {
-      throw new Error("عذراً، تعذر استخراج النص بسبب قيود سياسة السلامة.");
-    }
-    throw new Error(`فشل استخراج النص من ملف Word: ${error.message || "خطأ غير معروف"}`);
-  }
-}
-
-// --- Parsers ---
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-
-async function parseWordFile(file: File): Promise<string> {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({ arrayBuffer });
-    if (!result.value || result.value.trim() === "") {
-      throw new Error("لم يتم العثور على نص في ملف DOCX.");
-    }
-    return result.value;
-  } catch (error: any) {
-    console.error("Mammoth Error:", error);
-    throw new Error(`فشل استخراج النص من ملف DOCX: ${error.message || "خطأ غير معروف"}`);
-  }
-}
-
-async function pdfToImages(file: File): Promise<{ data: string; mimeType: string }[]> {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  
-  if (pdf.numPages > 10) {
-    throw new Error(`عذراً، الحد الأقصى المسموح به هو 10 صفحات لكل ملف. ملفك يحتوي على ${pdf.numPages} صفحة.`);
-  }
-
-  const images: { data: string; mimeType: string }[] = [];
-  const numPages = pdf.numPages;
-
-  for (let i = 1; i <= numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 3.0 });
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-
-    if (context) {
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-      await page.render({ canvasContext: context, viewport }).promise;
-      const base64 = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
-      images.push({ data: base64, mimeType: "image/jpeg" });
-    }
-  }
-  return images;
-}
-
 // --- Main Components ---
 
 function AppContent() {
@@ -246,28 +100,31 @@ function AppContent() {
 
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
-  const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<string>('');
+  const [sourceText, setSourceText] = useState<string>('');
+  const [mode, setMode] = useState<'translate' | 'proofread'>('translate');
   const [isLoading, setIsLoading] = useState(false);
-  const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
   const [history, setHistory] = useState<{ name: string; date: string; content: string }[]>([]);
+  const [sourceLang, setSourceLang] = useState<string>('auto');
+  const [targetLang, setTargetLang] = useState<string>('ar');
+
+  const languages = [
+    { code: 'auto', name: 'تعرف تلقائي' },
+    { code: 'ar', name: 'العربية' },
+    { code: 'en', name: 'الإنجليزية' },
+    { code: 'fr', name: 'الفرنسية' },
+    { code: 'de', name: 'الألمانية' },
+    { code: 'es', name: 'الإسبانية' },
+    { code: 'tr', name: 'التركية' },
+    { code: 'zh', name: 'الصينية' },
+  ];
 
   useEffect(() => {
-    const savedHistory = window.localStorage.getItem('flash_history');
+    const savedHistory = window.localStorage.getItem('faseeh_history');
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
     }
   }, []);
-
-  useEffect(() => {
-    let timer: any;
-    if (isLoading && estimatedTime && estimatedTime > 0) {
-      timer = setInterval(() => {
-        setEstimatedTime(prev => (prev && prev > 1 ? prev - 1 : prev));
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [isLoading, estimatedTime]);
 
   const addToHistory = (name: string, content: string) => {
     const newItem = {
@@ -277,7 +134,7 @@ function AppContent() {
     };
     const newHistory = [newItem, ...history].slice(0, 5);
     setHistory(newHistory);
-    window.localStorage.setItem('flash_history', JSON.stringify(newHistory));
+    window.localStorage.setItem('faseeh_history', JSON.stringify(newHistory));
   };
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -294,79 +151,48 @@ function AppContent() {
     }, 800);
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles[0]) {
-      setFile(acceptedFiles[0]);
-      setError(null);
-      setResult('');
-    }
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.webp'],
-      'application/pdf': ['.pdf'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
-    },
-    multiple: false
-  } as any);
-
-  const processFile = async () => {
-    if (!file) return;
-
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
-
+  const translateSourceText = async () => {
+    if (!sourceText.trim()) return;
     setIsLoading(true);
     setError(null);
-    
-    // تقدير الوقت: حوالي 3 ثواني لكل صفحة أو صورة
-    let timeEstimate = 3; 
-    if (file.type === 'application/pdf') {
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        timeEstimate = pdf.numPages * 3;
-      } catch (e) {
-        timeEstimate = 10;
-      }
-    } else if (file.type.includes('wordprocessingml')) {
-      timeEstimate = 5;
-    }
-    setEstimatedTime(timeEstimate);
-
+    setResult('');
     try {
-      let extractedText = '';
-
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
-          reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
-          reader.readAsDataURL(file);
-        });
-        extractedText = await extractTextFromImage(base64, file.type);
-      } else if (file.type === 'application/pdf') {
-        const pageImages = await pdfToImages(file);
-        extractedText = await extractTextFromPDFPages(pageImages);
-      } else if (file.type.includes('wordprocessingml')) {
-        const readerDataUrl = new FileReader();
-        const b64 = await new Promise<string>((resolve) => {
-          readerDataUrl.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
-          readerDataUrl.readAsDataURL(file);
-        });
-        extractedText = await extractTextFromDocx(b64);
+      let prompt = "";
+      if (mode === 'translate') {
+        const sourceLangName = languages.find(l=>l.code===sourceLang)?.name;
+        const targetLangName = languages.find(l=>l.code===targetLang)?.name;
+        prompt = `Translate the following text from ${sourceLang === 'auto' ? 'the detected language' : sourceLangName} into ${targetLangName}. Maintain the professional tone and nuances. Provide ONLY the translated text.\n\nText:\n${sourceText}`;
+      } else {
+        prompt = `Please proofread the following text for grammar, spelling, and style. Provide the corrected version in the same language. Provide ONLY the corrected text, no explanations or markers.\n\nText:\n${sourceText}`;
       }
 
-      setResult(extractedText);
-      addToHistory(file.name, extractedText);
+      const response = await (genAI as any).models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: {
+          parts: [
+            { text: prompt }
+          ]
+        },
+        config: {
+          temperature: 0.3,
+        }
+      });
+      if (!response.text) throw new Error(mode === 'translate' ? "فشل الحصول على ترجمة." : "فشل معالجة النص.");
+      setResult(response.text);
+      addToHistory(mode === 'translate' ? "ترجمة نص" : "تدقيق لغوي", response.text);
     } catch (err: any) {
-      setError(err.message || 'حدث خطأ أثناء معالجة الملف.');
+      setError(err.message || (mode === 'translate' ? "حدث خطأ أثناء الترجمة." : "حدث خطأ أثناء التدقيق."));
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const swapLanguages = () => {
+    if (sourceLang === 'auto') return;
+    const s = sourceLang;
+    const t = targetLang;
+    setSourceLang(t);
+    setTargetLang(s);
   };
 
   const [showHistory, setShowHistory] = useState(false);
@@ -381,7 +207,7 @@ function AppContent() {
     const element = document.createElement("a");
     const fileData = new Blob([result], { type: 'text/plain' });
     element.href = URL.createObjectURL(fileData);
-    element.download = `${file?.name.split('.')[0] || 'extracted_text'}.txt`;
+    element.download = `faseeh_result_${new Date().getTime()}.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -407,13 +233,13 @@ function AppContent() {
             </div>
             <div className="space-y-4">
               <h2 className="text-3xl font-bold text-brand-text-heading italic leading-relaxed">بسم الله الرحمن الرحيم</h2>
-              <p className="text-brand-text-muted font-medium">مرحباً بك في فلاش - رفيقك الذكي لاستخراج النصوص</p>
+              <p className="text-brand-text-muted font-medium">مرحباً بك في فلاش - رفيقك الذكي للترجمة الفورية</p>
             </div>
             <button 
               onClick={() => setShowWelcome(false)}
               className="w-full bg-brand-primary text-white py-5 rounded-2xl font-bold text-xl hover:bg-brand-primary-hover shadow-lg shadow-brand-primary/20 transition-all transform active:scale-95"
             >
-              تم
+              ابدأ الآن
             </button>
           </motion.div>
         </div>
@@ -575,9 +401,9 @@ function AppContent() {
               
               <div className="p-8 overflow-y-auto space-y-8 text-right custom-scrollbar">
                 <section className="space-y-3">
-                  <h4 className="font-bold text-brand-text-heading text-lg">1. جمع البيانات ومعالجتها</h4>
+                  <h4 className="font-bold text-brand-text-heading text-lg">1. معالجة البيانات</h4>
                   <p className="text-brand-text-muted leading-relaxed">
-                    نحن في "فلاش" نستخدم تقنيات الذكاء الاصطناعي (Gemini API) لمعالجة الصور والملفات التي ترفعها. نحن لا نقوم بتخزين هذه الملفات بشكل دائم على خوادمنا؛ بل يتم تحليلها في الوقت الفعلي وحذف البيانات المؤقتة فور انتهاء عملية الاستخراج.
+                    نحن في "فلاش" نستخدم تقنيات الذكاء الاصطناعي (Gemini API) لمعالجة النصوص التي تدققها أو تترجمها. نحن لا نقوم بتخزين هذه النصوص بشكل دائم على خوادمنا؛ بل يتم تحليلها في الوقت الفعلي وحذف البيانات المؤقتة فور انتهاء العملية.
                   </p>
                 </section>
 
@@ -589,9 +415,9 @@ function AppContent() {
                 </section>
 
                 <section className="space-y-3">
-                  <h4 className="font-bold text-brand-text-heading text-lg">3. أمان الملفات</h4>
+                  <h4 className="font-bold text-brand-text-heading text-lg">3. أمان النصوص</h4>
                   <p className="text-brand-text-muted leading-relaxed">
-                    عملية انتقال الملفات من جهازك إلى خوادم المعالجة تتم عبر بروتوكولات مشفرة وآمنة تماماً. نضمن لك خصوصية محتوى مستنداتك وعدم اطلاع أي عنصر بشري عليها.
+                    عملية انتقال النصوص من جهازك إلى خوادم المعالجة تتم عبر بروتوكولات مشفرة وآمنة تماماً. نضمن لك خصوصية محتواك وعدم اطلاع أي عنصر بشري عليه.
                   </p>
                 </section>
 
@@ -604,7 +430,7 @@ function AppContent() {
 
                 <div className="bg-brand-accent/30 p-6 rounded-2xl border border-brand-primary/10">
                   <p className="text-brand-text-heading font-medium text-sm">
-                    باستخدامك لموقع فلاش، فإنك توافق على شروط معالجة البيانات المذكورة أعلاه لغرض تسهيل استخراج النصوص.
+                    باستخدامك لموقع فلاش، فإنك توافق على شروط معالجة البيانات المذكورة أعلاه لغرض المساعدة في الترجمة والمعالجة.
                   </p>
                 </div>
               </div>
@@ -625,106 +451,139 @@ function AppContent() {
       <main className="max-w-5xl mx-auto px-6 py-12 md:py-20 flex flex-col items-center">
 
         <div className="w-full space-y-16">
-          {/* Hero Section */}
-          <section className="text-center space-y-6">
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-brand-text-heading italic"
-            >
-              استخرج نصوصك بسرعة <span className="text-brand-primary underline decoration-brand-primary/20 transition-all hover:decoration-brand-primary">البرق</span>
-            </motion.h2>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="text-lg md:text-xl text-brand-text-muted max-w-2xl mx-auto leading-relaxed"
-            >
-              حوّل الصور والملفات إلى نصوص بدقة فائقة وفورية تماماً مثل الفلاش.
-            </motion.p>
-          </section>
-
-          {/* Upload Section */}
-          <section className="w-full max-w-3xl mx-auto">
-            {!file ? (
-              <motion.div
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.995 }}
+          {/* Header Section */}
+          <section className="w-full max-w-4xl mx-auto space-y-12 text-center">
+            <div className="flex flex-col items-center gap-6">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="inline-flex items-center gap-3 px-6 py-2 bg-brand-accent/50 rounded-full border border-brand-primary/20"
               >
-                <div 
-                  {...getRootProps()}
+                <Zap className="w-4 h-4 text-brand-primary animate-pulse" />
+                <span className="text-xs font-bold text-brand-primary tracking-widest uppercase italic">فلاش - خدمات لغوية ذكية</span>
+              </motion.div>
+              <h2 className="text-4xl md:text-6xl font-black text-brand-text-heading italic">
+                {mode === 'translate' ? 'ترجمة احترافية ذكية' : 'تدقيق لغوي فائق الذكاء'} <br/>
+                <span className="text-brand-primary">في غمضة عين</span>
+              </h2>
+            </div>
+
+            {/* Service Toggle */}
+            <div className="flex justify-center">
+              <div className="bg-white/60 backdrop-blur-sm p-1.5 rounded-[24px] border border-brand-border/30 flex shadow-sm w-full max-w-md">
+                <button
+                  onClick={() => setMode('translate')}
                   className={cn(
-                    "border-2 border-dashed rounded-[40px] p-8 md:p-16 transition-all cursor-pointer text-center space-y-8 group relative overflow-hidden",
-                    isDragActive 
-                      ? "border-brand-primary bg-brand-primary/5 shadow-inner" 
-                      : "border-brand-border bg-white/60 hover:border-brand-primary/50 hover:bg-white/80"
+                    "flex-1 py-4 rounded-[18px] font-bold text-sm transition-all flex items-center justify-center gap-3 group",
+                    mode === 'translate' 
+                      ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" 
+                      : "text-brand-text-muted hover:bg-brand-accent/50"
                   )}
                 >
-                  <input {...getInputProps()} />
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-brand-accent rounded-full flex items-center justify-center mx-auto group-hover:bg-red-100 transition-colors shadow-sm">
-                  <Zap className="w-10 h-10 md:w-12 md:h-12 text-brand-primary fill-brand-primary/10" />
-                </div>
-                <div className="space-y-4">
-                  <h3 className="text-xl md:text-2xl font-bold text-brand-text-heading italic px-4">ارفع الملفات وهتلاقيها نصوص في غمضة عين</h3>
-                  <p className="text-sm md:text-base text-brand-text-muted font-medium">JPG, PNG, PDF, DOCX (حتى 10 صفحات)</p>
-                  <div className="inline-block mt-4">
-                    <span className="bg-brand-primary text-white px-8 py-3 md:px-10 md:py-4 rounded-full font-bold text-base md:text-lg shadow-lg shadow-brand-primary/20 group-hover:bg-brand-primary-hover transition-all">
-                      اختر الملفات من جهازك
-                    </span>
-                  </div>
-                </div>
+                  <ArrowRightLeft className={cn("w-4 h-4", mode === 'translate' ? "text-white" : "text-brand-primary")} />
+                  ترجمة النصوص
+                </button>
+                <button
+                  onClick={() => setMode('proofread')}
+                  className={cn(
+                    "flex-1 py-4 rounded-[18px] font-bold text-sm transition-all flex items-center justify-center gap-3 group",
+                    mode === 'proofread' 
+                      ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" 
+                      : "text-brand-text-muted hover:bg-brand-accent/50"
+                  )}
+                >
+                  <Check className={cn("w-4 h-4", mode === 'proofread' ? "text-white" : "text-brand-primary")} />
+                  تدقيق لغوي
+                </button>
               </div>
-            </motion.div>
-          ) : (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white/80 backdrop-blur-sm border border-brand-border rounded-[32px] p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-brand-primary/5"
+            </div>
+          </section>
+
+          {/* Language Selection Header */}
+          <AnimatePresence mode="wait">
+            {mode === 'translate' && (
+              <motion.section 
+                key="lang-select"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="w-full max-w-4xl mx-auto"
               >
-                <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 bg-brand-accent rounded-2xl flex items-center justify-center shadow-inner">
-                    {file.type.includes('image') ? <ImageIcon className="w-8 h-8 text-brand-primary" /> : <FileText className="w-8 h-8 text-brand-primary" />}
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-xl text-brand-text-heading truncate max-w-[200px]">{file.name}</p>
-                    <p className="text-brand-text-muted">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                  <button 
-                    onClick={() => {
-                      setFile(null);
-                      setResult("");
-                      setError(null);
-                    }}
-                    className="p-4 hover:bg-red-50 text-red-400 rounded-2xl transition-colors border border-transparent hover:border-red-100"
-                    title="إلغاء الملف"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                    <button
-                      disabled={isLoading}
-                      onClick={processFile}
-                      className="flex-1 md:flex-none bg-brand-primary text-white px-10 py-4 rounded-2xl font-bold hover:bg-brand-primary-hover disabled:opacity-50 transition-all flex flex-col items-center justify-center gap-1 shadow-lg shadow-brand-primary/20"
+                <div className="flex flex-wrap items-center justify-center gap-6 w-full">
+                  <div className="flex-1 min-w-[160px] max-w-[200px]">
+                    <p className="text-[10px] font-bold text-brand-text-muted uppercase mb-2 text-right tracking-widest">من لغة</p>
+                    <select 
+                      value={sourceLang}
+                      onChange={(e) => setSourceLang(e.target.value)}
+                      className="w-full bg-white border border-brand-border/30 rounded-2xl p-4 text-sm font-bold text-brand-text-heading focus:ring-2 focus:ring-brand-primary/20 appearance-none text-right cursor-pointer shadow-sm"
                     >
-                      <div className="flex items-center gap-3">
-                        {isLoading ? (
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                        ) : !user ? (
-                          'سجل الدخول للمعالجة'
-                        ) : (
-                          'ابدأ المعالجة'
-                        )}
-                      </div>
-                      {isLoading && estimatedTime && (
-                        <span className="text-[10px] opacity-80 font-medium">
-                          الوقت المتوقع: {estimatedTime} ثوانٍ تقريباً
-                        </span>
-                      )}
-                    </button>
+                      {languages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                    </select>
+                  </div>
+
+                  <button 
+                    onClick={swapLanguages}
+                    className="w-10 h-10 rounded-full bg-brand-accent flex items-center justify-center shrink-0 mt-6 md:mt-2 hover:bg-brand-primary/10 transition-colors cursor-pointer group active:scale-95"
+                  >
+                    <ArrowRightLeft className="w-5 h-5 text-brand-primary group-hover:scale-110 transition-transform" />
+                  </button>
+
+                  <div className="flex-1 min-w-[160px] max-w-[200px]">
+                    <p className="text-[10px] font-bold text-brand-text-muted uppercase mb-2 text-right tracking-widest">إلى لغة</p>
+                    <select 
+                      value={targetLang}
+                      onChange={(e) => setTargetLang(e.target.value)}
+                      className="w-full bg-white border border-brand-border/30 rounded-2xl p-4 text-sm font-bold text-brand-text-heading focus:ring-2 focus:ring-brand-primary/20 appearance-none text-right cursor-pointer shadow-sm"
+                    >
+                      {languages.filter(l => l.code !== 'auto').map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                    </select>
+                  </div>
                 </div>
-              </motion.div>
+              </motion.section>
             )}
+          </AnimatePresence>
+
+          {/* Translation Section */}
+          <section className="w-full max-w-4xl mx-auto">
+            {!result && !isLoading && !error ? (
+              <div className="w-full">
+                {/* Direct Text Translation */}
+                <motion.div 
+                   initial={{ opacity: 0, y: 20 }}
+                   animate={{ opacity: 1, y: 0 }}
+                   className="bg-white/60 backdrop-blur-sm border border-brand-border/30 rounded-[40px] p-8 md:p-12 space-y-8 flex flex-col shadow-lg"
+                 >
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center">
+                      {mode === 'translate' ? <Zap className="w-6 h-6 text-brand-primary" /> : <Check className="w-6 h-6 text-brand-primary" />}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-brand-text-heading text-xl">
+                        {mode === 'translate' ? 'ترجمة النص المباشر' : 'التدقيق اللغوي الذكي'}
+                      </h3>
+                      <p className="text-xs text-brand-text-muted font-medium">
+                        {mode === 'translate' ? 'اكتب أو الصق ما تريد ترجمته بالأسفل' : 'اكتب أو الصق النص الذي ترغب في تدقيقه'}
+                      </p>
+                    </div>
+                  </div>
+                  <textarea
+                    value={sourceText}
+                    onChange={(e) => setSourceText(e.target.value)}
+                    placeholder={mode === 'translate' ? "ادخل النص هنا..." : "ادخل نصك هنا للمراجعة اللغوية..."}
+                    className="flex-1 w-full min-h-[250px] bg-white/40 border border-brand-border/10 rounded-3xl p-8 text-lg text-brand-text-body placeholder:text-brand-text-muted/50 resize-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary text-right leading-relaxed"
+                    dir="auto"
+                  />
+                  <button
+                    onClick={translateSourceText}
+                    disabled={!sourceText.trim() || isLoading}
+                    className="w-full bg-brand-primary text-white py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 hover:bg-brand-primary-hover transition-all shadow-xl shadow-brand-primary/20 disabled:opacity-50 active:scale-95"
+                  >
+                    {mode === 'translate' ? <Zap className="w-6 h-6 fill-white" /> : <Check className="w-6 h-6 fill-white" />}
+                    {mode === 'translate' ? 'ترجم الآن' : 'تشغيل التدقيق'}
+                  </button>
+                </motion.div>
+              </div>
+            ) : null}
           </section>
 
           {/* Results Section */}
@@ -739,9 +598,21 @@ function AppContent() {
                 {error ? (
                   <div className="bg-red-50/80 backdrop-blur-sm border border-red-100 rounded-[24px] p-8 flex items-start gap-5 text-red-800 shadow-sm">
                     <AlertCircle className="w-8 h-8 shrink-0 text-red-400" />
-                    <div className="space-y-1">
-                      <h4 className="font-bold text-lg">حدث خطأ</h4>
-                      <p className="font-medium text-red-700/80 leading-relaxed">{error}</p>
+                    <div className="flex-1 space-y-4">
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-lg">حدث خطأ</h4>
+                        <p className="font-medium text-red-700/80 leading-relaxed">{error}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setError(null);
+                          setResult("");
+                        }}
+                        className="flex items-center gap-2 px-6 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-full transition-all text-xs font-bold"
+                      >
+                        <ChevronLeft className="w-4 h-4 ml-1" />
+                        العودة للمحاولة
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -751,9 +622,20 @@ function AppContent() {
                         <div className="w-8 h-8 bg-green-50 rounded-full flex items-center justify-center">
                           <Check className="w-5 h-5 text-green-500" />
                         </div>
-                        النص المستخرج
+                        {mode === 'translate' ? 'نتائج الترجمة' : 'نتائج التدقيق'}
                       </h3>
                       <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => {
+                            setResult("");
+                            setSourceText("");
+                            setError(null);
+                          }}
+                          className="flex items-center gap-2 px-6 py-3 hover:bg-brand-accent rounded-full transition-all text-sm font-bold border border-brand-border/50 text-brand-text-heading"
+                        >
+                          <ChevronLeft className="w-4 h-4 ml-1" />
+                          رجوع
+                        </button>
                         <button
                           onClick={handleCopy}
                           className="flex items-center gap-2 px-6 py-3 hover:bg-brand-accent rounded-full transition-all text-sm font-bold border border-brand-border/50 text-brand-text-heading"
@@ -793,8 +675,8 @@ function AppContent() {
                   <span className="text-brand-primary font-bold text-lg">01</span>
                 </div>
                 <div>
-                  <h4 className="font-bold text-brand-text-heading text-lg">دقة ذكاء اصطناعي</h4>
-                  <p className="text-sm text-brand-text-muted">التعرف المتقدم على الحروف العربية</p>
+                  <h4 className="font-bold text-brand-text-heading text-lg">خدمات متكاملة</h4>
+                  <p className="text-sm text-brand-text-muted">ترجمة احترافية وتدقيق لغوي دقيق في مكان واحد</p>
                 </div>
               </div>
               <div className="bg-white/40 p-8 rounded-[32px] border border-white/60 flex items-center gap-5 shadow-sm hover:translate-y-[-4px] transition-transform">
@@ -802,8 +684,8 @@ function AppContent() {
                   <span className="text-brand-primary font-bold text-lg">02</span>
                 </div>
                 <div>
-                  <h4 className="font-bold text-brand-text-heading text-lg">تحويل متعدد</h4>
-                  <p className="text-sm text-brand-text-muted">دعم كامل لملفات وورد وبي دي اف</p>
+                  <h4 className="font-bold text-brand-text-heading text-lg">أداء فائق</h4>
+                  <p className="text-sm text-brand-text-muted">معالجة فورية وعالية الدقة للنصوص والفقرات</p>
                 </div>
               </div>
               <div className="bg-white/40 p-8 rounded-[32px] border border-white/60 flex items-center gap-5 shadow-sm hover:translate-y-[-4px] transition-transform">
@@ -812,7 +694,7 @@ function AppContent() {
                 </div>
                 <div>
                   <h4 className="font-bold text-brand-text-heading text-lg">أمان تام</h4>
-                  <p className="text-sm text-brand-text-muted">تشفير وحذف تلقائي للملفات</p>
+                  <p className="text-sm text-brand-text-muted">تشفير وحذف تلقائي للنص بعد انتهاء العمل</p>
                 </div>
               </div>
             </div>
@@ -831,7 +713,7 @@ function AppContent() {
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-2xl text-brand-text-heading italic flex items-center gap-3">
                       <Zap className="w-6 h-6 text-brand-primary fill-brand-primary/10" />
-                      سجل استخراجك
+                      سجل العمليات
                     </h3>
                     <button 
                       onClick={() => setShowHistory(false)}
@@ -847,14 +729,13 @@ function AppContent() {
                         whileHover={{ y: -4, boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                         onClick={() => {
                           setResult(item.content);
-                          setFile({ name: item.name, size: 0, type: 'text/plain' } as any);
                           setShowHistory(false);
-                          window.scrollTo({ top: 1000, behavior: 'smooth' });
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
                         className="p-6 bg-white/80 rounded-[32px] border border-brand-border/20 hover:border-brand-primary/40 transition-all cursor-pointer group flex items-center gap-5"
                       >
                         <div className="w-14 h-14 bg-brand-accent rounded-2xl flex items-center justify-center group-hover:bg-brand-primary/10 transition-colors shrink-0">
-                          <FileText className="w-7 h-7 text-brand-primary" />
+                          <Zap className="w-7 h-7 text-brand-primary" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-brand-text-heading text-base truncate">{item.name}</p>
@@ -872,7 +753,7 @@ function AppContent() {
           <section id="how-it-works" className="w-full max-w-5xl mx-auto py-20 border-t border-brand-border/20">
             <div className="text-center mb-16">
               <h3 className="text-3xl font-bold text-brand-text-heading italic mb-4">كيف يعمل فلاش؟</h3>
-              <p className="text-brand-text-muted">ثلاث خطوات بسيطة تفصلك عن نصك المستخرج</p>
+              <p className="text-brand-text-muted">ثلاث خطوات بسيطة تفصلك عن نتائج احترافية</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
@@ -882,21 +763,21 @@ function AppContent() {
 
               <div className="flex flex-col items-center text-center space-y-6 relative z-1">
                 <div className="w-20 h-20 bg-brand-accent rounded-3xl flex items-center justify-center shadow-lg transform rotate-3">
-                  <Upload className="w-10 h-10 text-brand-primary" />
+                  <Zap className="w-10 h-10 text-brand-primary" />
                 </div>
                 <div className="space-y-2">
-                  <h4 className="font-bold text-xl text-brand-text-heading">1. ارفع ملفك</h4>
-                  <p className="text-brand-text-muted text-sm leading-relaxed">اسحب الصورة أو ملف الـ PDF وألقهِ في منطقة الرفع المخصصة.</p>
+                  <h4 className="font-bold text-xl text-brand-text-heading">1. ادخل نصك</h4>
+                  <p className="text-brand-text-muted text-sm leading-relaxed">قم بكتابة أو لصق النص الذي ترغب في ترجمته أو تدقيقه في المربع المخصص.</p>
                 </div>
               </div>
 
               <div className="flex flex-col items-center text-center space-y-6 relative z-1">
                 <div className="w-20 h-20 bg-brand-accent rounded-3xl flex items-center justify-center shadow-lg transform -rotate-2">
-                  <Loader2 className="w-10 h-10 text-brand-primary" />
+                  <ArrowRightLeft className="w-10 h-10 text-brand-primary" />
                 </div>
                 <div className="space-y-2">
-                  <h4 className="font-bold text-xl text-brand-text-heading">2. معالجة ذكية</h4>
-                  <p className="text-brand-text-muted text-sm leading-relaxed">يقوم الذكاء الاصطناعي (Gemini) بتحليل الملف واستخراج النصوص بدقة.</p>
+                  <h4 className="font-bold text-xl text-brand-text-heading">2. اختر الخدمة</h4>
+                  <p className="text-brand-text-muted text-sm leading-relaxed">حدد ما إذا كنت ترغب في الترجمة بين اللغات أو التدقيق اللغوي للنص.</p>
                 </div>
               </div>
 
@@ -905,8 +786,8 @@ function AppContent() {
                   <Copy className="w-10 h-10 text-brand-primary" />
                 </div>
                 <div className="space-y-2">
-                  <h4 className="font-bold text-xl text-brand-text-heading">3. انسخ الملف</h4>
-                  <p className="text-brand-text-muted text-sm leading-relaxed">بضغطة زر واحدة، يمكنك نسخ النص أو تحميله كملف نصي جاهز.</p>
+                  <h4 className="font-bold text-xl text-brand-text-heading">3. استلم النتيجة</h4>
+                  <p className="text-brand-text-muted text-sm leading-relaxed">بضغطة زر واحدة ستحصل على نتيجة احترافية فورية لنصك.</p>
                 </div>
               </div>
             </div>
