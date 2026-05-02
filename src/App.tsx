@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
+import React, { useState, useCallback, createContext, useContext, useEffect, useRef } from 'react';
 import { 
   Zap, 
   Copy, 
@@ -15,7 +15,14 @@ import {
   ArrowRightLeft,
   ChevronLeft,
   Moon,
-  Sun
+  Sun,
+  Mic,
+  MicOff,
+  Wand2,
+  Upload,
+  Music,
+  FileAudio,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
@@ -116,8 +123,12 @@ function AppContent() {
   const [showWelcome, setShowWelcome] = useState(true);
   const [result, setResult] = useState<string>('');
   const [sourceText, setSourceText] = useState<string>('');
-  const [mode, setMode] = useState<'translate' | 'proofread'>('translate');
+  const [mode, setMode] = useState<'translate' | 'proofread' | 'transcribe'>('translate');
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioBase64, setAudioBase64] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
   const [history, setHistory] = useState<{ name: string; date: string; content: string }[]>([]);
   const [sourceLang, setSourceLang] = useState<string>('auto');
   const [targetLang, setTargetLang] = useState<string>('ar');
@@ -150,7 +161,7 @@ function AppContent() {
     setHistory(newHistory);
     window.localStorage.setItem('faseeh_history', JSON.stringify(newHistory));
   };
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleLocalSignIn = (e: React.FormEvent) => {
@@ -165,38 +176,89 @@ function AppContent() {
     }, 800);
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('audio/')) {
+      setError('يرجى اختيار ملف صوتي صالح (mp3, wav, etc.).');
+      return;
+    }
+
+    setAudioFile(file);
+    setIsLoading(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        setAudioBase64(base64);
+        setIsLoading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setError('فشل في قراءة ملف الصوت.');
+      setIsLoading(false);
+    }
+  };
+
+  const removeAudioFile = () => {
+    setAudioFile(null);
+    setAudioBase64(null);
+  };
+
   const translateSourceText = async () => {
-    if (!sourceText.trim()) return;
+    if (!sourceText.trim() && !audioBase64) return;
     setIsLoading(true);
     setError(null);
     setResult('');
     try {
       const genAI = getGenAI();
-      let prompt = "";
+      const model = (genAI as any).getGenerativeModel({ model: "gemini-1.5-flash" });
+      
+      let promptText = "";
+      let parts: any[] = [];
+
       if (mode === 'translate') {
         const sourceLangName = languages.find(l=>l.code===sourceLang)?.name;
         const targetLangName = languages.find(l=>l.code===targetLang)?.name;
-        prompt = `Translate the following text from ${sourceLang === 'auto' ? 'the detected language' : sourceLangName} into ${targetLangName}. Maintain the professional tone and nuances. Provide ONLY the translated text.\n\nText:\n${sourceText}`;
+        promptText = `Translate the following text from ${sourceLang === 'auto' ? 'the detected language' : sourceLangName} into ${targetLangName}. Maintain the professional tone and nuances. Provide ONLY the translated text.\n\nText:\n${sourceText}`;
+        parts.push({ text: promptText });
+      } else if (mode === 'proofread') {
+        promptText = `Please proofread the following text for grammar, spelling, and style. Provide the corrected version in the same language. Provide ONLY the corrected text, no explanations or markers.\n\nText:\n${sourceText}`;
+        parts.push({ text: promptText });
       } else {
-        prompt = `Please proofread the following text for grammar, spelling, and style. Provide the corrected version in the same language. Provide ONLY the corrected text, no explanations or markers.\n\nText:\n${sourceText}`;
+        // Transcribe mode
+        if (audioBase64) {
+          promptText = `Please transcribe and summarize this audio file accurately. If it's a lecture or meeting, provide a well-formatted summary. If it's short, just provide the transcription. Respond in Arabic unless the audio is exclusively in another language. Provide ONLY the result text.`;
+          parts.push({ text: promptText });
+          parts.push({
+            inlineData: {
+              data: audioBase64,
+              mimeType: audioFile?.type || 'audio/mpeg'
+            }
+          });
+        } else {
+          promptText = `You are a professional editor. The following text is a transcription of speech. Please fix any transcription errors, add proper punctuation, and improve the flow while keeping the exact same meaning. Provide ONLY the refined text.\n\nText:\n${sourceText}`;
+          parts.push({ text: promptText });
+        }
       }
 
-      const response = await (genAI as any).models.generateContent({
-        model: "gemini-flash-latest",
-        contents: {
-          parts: [
-            { text: prompt }
-          ]
-        },
-        config: {
-          temperature: 0.3,
-        }
-      });
-      if (!response.text) throw new Error(mode === 'translate' ? "فشل الحصول على ترجمة." : "فشل معالجة النص.");
-      setResult(response.text);
-      addToHistory(mode === 'translate' ? "ترجمة نص" : "تدقيق لغوي", response.text);
+      const response = await model.generateContent(parts);
+      const outputText = response.response.text();
+      
+      if (!outputText) throw new Error(mode === 'translate' ? "فشل الحصول على ترجمة." : "فشل معالجة النص.");
+      setResult(outputText);
+      addToHistory(mode === 'translate' ? "ترجمة نص" : mode === 'proofread' ? "تدقيق لغوي" : "تفريغ صوتي", outputText);
     } catch (err: any) {
-      setError(err.message || (mode === 'translate' ? "حدث خطأ أثناء الترجمة." : "حدث خطأ أثناء التدقيق."));
+      console.error("Gemini Error:", err);
+      let userFriendlyError = "حدث خطأ غير متوقع.";
+      if (err.message?.includes("API key")) {
+        userFriendlyError = "خطأ في مفتاح API. يرجى التأكد من صلاحية المفتاح المستخدم.";
+      } else if (err.message?.includes("quota")) {
+        userFriendlyError = "تم تجاوز حصة الاستخدام المتاحة. يرجى المحاولة لاحقاً.";
+      }
+      setError(err.message || userFriendlyError);
     } finally {
       setIsLoading(false);
     }
@@ -242,6 +304,64 @@ function AppContent() {
       window.localStorage.setItem('faseeh_theme', 'light');
     }
   }, [isDarkMode]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.lang = 'ar-SA'; // Default to Arabic
+
+        recognitionRef.current.onresult = (event: any) => {
+          let interimTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              setSourceText(prev => prev + event.results[i][0].transcript);
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+        };
+
+        recognitionRef.current.onerror = (event: any) => {
+          console.error('Speech recognition error', event.error);
+          setIsRecording(false);
+          if (event.error === 'not-allowed') {
+            setError(
+              <div className="flex flex-col gap-2">
+                <span>يرجى السماح بالوصول إلى الميكروفون من إعدادات المتصفح.</span>
+                <span className="text-xs">إذا كنت تستخدم التطبيق داخل معاينة، جرب فتحه في <a href={window.location.href} target="_blank" rel="noopener noreferrer" className="underline font-bold">نافذة جديدة</a>.</span>
+              </div>
+            );
+          } else {
+            setError(`خطأ في التعرف على الصوت: ${event.error}`);
+          }
+        };
+
+        recognitionRef.current.onend = () => {
+          setIsRecording(false);
+        };
+      }
+    }
+  }, []);
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      setError('عذراً، متصفحك لا يدعم ميزة التعرف على الصوت.');
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+    } else {
+      setSourceText('');
+      setError(null);
+      recognitionRef.current.start();
+      setIsRecording(true);
+    }
+  };
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
@@ -519,11 +639,11 @@ function AppContent() {
 
             {/* Service Toggle */}
             <div className="flex justify-center">
-              <div className="bg-brand-bg/60 backdrop-blur-sm p-1.5 rounded-[24px] border border-brand-border/30 flex shadow-sm w-full max-w-md">
+              <div className="bg-brand-bg/60 backdrop-blur-sm p-1.5 rounded-[24px] border border-brand-border/30 flex shadow-sm w-full max-w-2xl overflow-x-auto no-scrollbar">
                 <button
                   onClick={() => setMode('translate')}
                   className={cn(
-                    "flex-1 py-4 rounded-[18px] font-bold text-sm transition-all flex items-center justify-center gap-3 group",
+                    "flex-1 min-w-[120px] py-4 rounded-[18px] font-bold text-sm transition-all flex items-center justify-center gap-3 group whitespace-nowrap",
                     mode === 'translate' 
                       ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" 
                       : "text-brand-text-muted hover:bg-brand-accent/50"
@@ -535,7 +655,7 @@ function AppContent() {
                 <button
                   onClick={() => setMode('proofread')}
                   className={cn(
-                    "flex-1 py-4 rounded-[18px] font-bold text-sm transition-all flex items-center justify-center gap-3 group",
+                    "flex-1 min-w-[120px] py-4 rounded-[18px] font-bold text-sm transition-all flex items-center justify-center gap-3 group whitespace-nowrap",
                     mode === 'proofread' 
                       ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" 
                       : "text-brand-text-muted hover:bg-brand-accent/50"
@@ -543,6 +663,18 @@ function AppContent() {
                 >
                   <Check className={cn("w-4 h-4", mode === 'proofread' ? "text-white" : "text-brand-primary")} />
                   تدقيق لغوي
+                </button>
+                <button
+                  onClick={() => setMode('transcribe')}
+                  className={cn(
+                    "flex-1 min-w-[120px] py-4 rounded-[18px] font-bold text-sm transition-all flex items-center justify-center gap-3 group whitespace-nowrap",
+                    mode === 'transcribe' 
+                      ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" 
+                      : "text-brand-text-muted hover:bg-brand-accent/50"
+                  )}
+                >
+                  <Mic className={cn("w-4 h-4", mode === 'transcribe' ? "text-white" : "text-brand-primary")} />
+                  تفريغ صوتي
                 </button>
               </div>
             </div>
@@ -602,23 +734,93 @@ function AppContent() {
                    animate={{ opacity: 1, y: 0 }}
                    className="bg-brand-bg/60 backdrop-blur-sm border border-brand-border/30 rounded-[40px] p-8 md:p-12 space-y-8 flex flex-col shadow-lg"
                  >
-                  <div className="flex items-center gap-4 mb-2">
-                    <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center">
-                      {mode === 'translate' ? <Zap className="w-6 h-6 text-brand-primary" /> : <Check className="w-6 h-6 text-brand-primary" />}
+                  <div className="flex items-center justify-between gap-4 mb-2">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center">
+                        {mode === 'translate' ? <Zap className="w-6 h-6 text-brand-primary" /> : 
+                         mode === 'proofread' ? <Check className="w-6 h-6 text-brand-primary" /> :
+                         <Mic className="w-6 h-6 text-brand-primary" />}
+                      </div>
+                      <div className="text-right">
+                        <h3 className="font-bold text-brand-text-heading text-xl">
+                          {mode === 'translate' ? 'ترجمة النص المباشر' : 
+                           mode === 'proofread' ? 'التدقيق اللغوي الذكي' : 
+                           'التفريغ الصوتي الفوري'}
+                        </h3>
+                        <p className="text-xs text-brand-text-muted font-medium">
+                          {mode === 'translate' ? 'اكتب أو الصق ما تريد ترجمته بالأسفل' : 
+                           mode === 'proofread' ? 'اكتب أو الصق النص الذي ترغب في تدقيقه' :
+                           'اضغط على الزر للتحدث وسنقوم بكتابة كل ما تقوله'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-brand-text-heading text-xl">
-                        {mode === 'translate' ? 'ترجمة النص المباشر' : 'التدقيق اللغوي الذكي'}
-                      </h3>
-                      <p className="text-xs text-brand-text-muted font-medium">
-                        {mode === 'translate' ? 'اكتب أو الصق ما تريد ترجمته بالأسفل' : 'اكتب أو الصق النص الذي ترغب في تدقيقه'}
-                      </p>
-                    </div>
+                    
+                    {mode === 'transcribe' && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <input 
+                          type="file" 
+                          id="audio-upload"
+                          accept="audio/*"
+                          className="hidden"
+                          onChange={handleFileChange}
+                        />
+                        <label 
+                          htmlFor="audio-upload"
+                          className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-brand-accent text-brand-primary hover:bg-brand-primary hover:text-white transition-all font-bold text-sm shadow-sm cursor-pointer border border-brand-primary/20"
+                        >
+                          <Upload className="w-5 h-5" />
+                          رفع ملف صوتي
+                        </label>
+
+                        <button
+                          onClick={toggleRecording}
+                          className={cn(
+                            "flex items-center gap-3 px-6 py-4 rounded-2xl transition-all font-bold text-sm shadow-lg",
+                            isRecording 
+                              ? "bg-red-500 text-white animate-pulse shadow-red-500/20" 
+                              : "bg-brand-primary text-white hover:bg-brand-primary-hover shadow-brand-primary/20"
+                          )}
+                        >
+                          {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                          {isRecording ? 'إيقاف التسجيل' : 'بدء التحدث'}
+                        </button>
+                      </div>
+                    )}
                   </div>
+
+                  {mode === 'transcribe' && audioFile && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-6 bg-brand-accent/50 border border-brand-primary/20 rounded-3xl flex items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-brand-primary rounded-xl flex items-center justify-center">
+                          <Music className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-brand-text-heading text-sm line-clamp-1">{audioFile.name}</p>
+                          <p className="text-[10px] text-brand-text-muted">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={removeAudioFile}
+                        className="p-3 hover:bg-red-50 text-red-500 rounded-xl transition-colors"
+                        title="حذف الملف"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </motion.div>
+                  )}
+
                   <textarea
                     value={sourceText}
                     onChange={(e) => setSourceText(e.target.value)}
-                    placeholder={mode === 'translate' ? "ادخل النص هنا..." : "ادخل نصك هنا للمراجعة اللغوية..."}
+                    placeholder={
+                      mode === 'translate' ? "ادخل النص هنا..." : 
+                      mode === 'proofread' ? "ادخل نصك هنا للمراجعة اللغوية..." :
+                      "النص سيظهر هنا تلقائياً عند التحدث..."
+                    }
                     className="flex-1 w-full min-h-[250px] bg-brand-bg/40 border border-brand-border/10 rounded-3xl p-8 text-lg text-brand-text-body placeholder:text-brand-text-muted/50 resize-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary text-right leading-relaxed"
                     dir="auto"
                   />
@@ -627,8 +829,14 @@ function AppContent() {
                     disabled={!sourceText.trim() || isLoading}
                     className="w-full bg-brand-primary text-white py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 hover:bg-brand-primary-hover transition-all shadow-xl shadow-brand-primary/20 disabled:opacity-50 active:scale-95"
                   >
-                    {mode === 'translate' ? <Zap className="w-6 h-6 fill-white" /> : <Check className="w-6 h-6 fill-white" />}
-                    {mode === 'translate' ? 'ترجم الآن' : 'تشغيل التدقيق'}
+                    {isLoading ? (
+                      <Loader2 className="w-6 h-6 animate-spin text-white" />
+                    ) : (
+                      <>
+                        <Wand2 className="w-6 h-6" />
+                        {mode === 'translate' ? 'ترجم الآن' : mode === 'proofread' ? 'تشغيل التدقيق' : 'تحسين وتنسيق النص'}
+                      </>
+                    )}
                   </button>
                 </motion.div>
               </div>
@@ -671,7 +879,7 @@ function AppContent() {
                         <div className="w-8 h-8 bg-green-50 rounded-full flex items-center justify-center">
                           <Check className="w-5 h-5 text-green-500" />
                         </div>
-                        {mode === 'translate' ? 'نتائج الترجمة' : 'نتائج التدقيق'}
+                        {mode === 'translate' ? 'نتائج الترجمة' : mode === 'proofread' ? 'نتائج التدقيق' : 'نتائج التفريغ'}
                       </h3>
                       <div className="flex items-center gap-3">
                         <button
