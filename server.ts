@@ -23,7 +23,7 @@ let genAI: GoogleGenerativeAI | null = null;
 
 function getGenAI() {
   if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || "AIzaSyCScbL2jQ8a5PBmuF63C1rw4wuT15Qq5nI";
     if (!apiKey || apiKey === "undefined" || apiKey === "") {
         throw new Error("برجاء إضافة مفتاح الـ API في لوحة الـ Secrets باسم GEMINI_API_KEY");
     }
