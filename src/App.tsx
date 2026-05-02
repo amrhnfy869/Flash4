@@ -25,6 +25,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI } from "@google/genai";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -94,37 +95,19 @@ function useAuth() {
   return context;
 }
 
-// --- AI Service (Backend Proxy) ---
-const callGeminiAPI = async (parts: any[], modelName: string = "gemini-1.5-flash") => {
-  try {
-    const response = await fetch('/api/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: modelName,
-        parts: parts
-      }),
-    });
+// --- AI Service ---
+const getGenAI = () => {
+  // Try to get the API key from various possible sources
+  const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
+                 (import.meta as any).env?.VITE_GEMINI_API_KEY ||
+                 (import.meta as any).env?.GEMINI_API_KEY ||
+                 "AIzaSyC7vpweShVSGpMHwPUIhhh4TV7TlJlgrac"; // Fallback key provided by user
 
-    if (!response.ok) {
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `خطأ في الخادم: ${response.status}`);
-      } else {
-        const errorText = await response.text();
-        console.error("Non-JSON error response:", errorText);
-        throw new Error(`خطأ غير متوقع من الخادم (${response.status}). يرجى المحاولة لاحقاً.`);
-      }
-    }
-
-    const data = await response.json();
-    return data.text;
-  } catch (error: any) {
-    throw error;
+  if (!apiKey || apiKey === "undefined" || apiKey === "null" || apiKey.trim() === "") {
+    throw new Error("عذراً، مفتاح API غير موجود. يرجى التأكد من إعداد GEMINI_API_KEY في إعدادات البيئة الخاصة بك.");
   }
+  
+  return new GoogleGenAI({ apiKey });
 };
 
 // --- Main Components ---
@@ -232,6 +215,8 @@ function AppContent() {
     setError(null);
     setResult('');
     try {
+      const genAI = getGenAI();
+      
       let promptText = "";
       let parts: any[] = [];
 
@@ -260,7 +245,11 @@ function AppContent() {
         }
       }
 
-      const outputText = await callGeminiAPI(parts, "gemini-1.5-flash");
+      const response = await (genAI as any).models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: { parts }
+      });
+      const outputText = response.text;
       
       if (!outputText) throw new Error(mode === 'translate' ? "فشل الحصول على ترجمة." : "فشل معالجة النص.");
       setResult(outputText);
@@ -683,27 +672,8 @@ function AppContent() {
 
           {/* Translation Section */}
           <section className="w-full max-w-4xl mx-auto">
-            {!result && !error && (
-              isLoading ? (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-brand-bg/60 backdrop-blur-sm border border-brand-border/30 rounded-[40px] p-8 md:p-12 space-y-12 flex flex-col items-center justify-center shadow-lg min-h-[500px]"
-                >
-                  <div className="flex flex-col items-center space-y-6 text-center">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-brand-primary/20 blur-2xl rounded-full animate-pulse" />
-                      <Loader2 className="w-20 h-20 animate-spin text-brand-primary relative" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-2xl font-bold text-brand-text-heading italic">جاري معالجة المحتوى...</h3>
-                      <p className="text-brand-text-muted font-medium">فلاش يستخدم أحدث تقنيات الذكاء الاصطناعي لخدمتك</p>
-                      <p className="text-[12px] font-bold text-brand-primary animate-pulse mt-2">الوقت التقريبي: 5 - 10 ثوانٍ</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ) : (
-                <div className="w-full">
+            {!result && !isLoading && !error ? (
+              <div className="w-full">
                 {/* Direct Text Translation */}
                 <motion.div 
                    initial={{ opacity: 0, y: 20 }}
@@ -793,10 +763,7 @@ function AppContent() {
                     className="w-full bg-brand-primary text-white py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 hover:bg-brand-primary-hover transition-all shadow-xl shadow-brand-primary/20 disabled:opacity-50 active:scale-95"
                   >
                     {isLoading ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="w-6 h-6 animate-spin text-white" />
-                        <span className="text-[10px] opacity-70 font-medium">الوقت التقريبي: 5 - 10 ثوانٍ</span>
-                      </div>
+                      <Loader2 className="w-6 h-6 animate-spin text-white" />
                     ) : (
                       <>
                         <Wand2 className="w-6 h-6" />
@@ -806,7 +773,7 @@ function AppContent() {
                   </button>
                 </motion.div>
               </div>
-            ))}
+            ) : null}
           </section>
 
           {/* Results Section */}
