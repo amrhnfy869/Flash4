@@ -43,20 +43,32 @@ app.post("/api/generate", async (req, res) => {
     const { model: modelName, parts } = req.body;
     const ai = getGenAI();
     
-    // Use gemini-1.5-flash-latest for better compatibility
+    // Use gemini-1.5-flash as the standard stable model
     const finalModelName = (modelName === "gemini-flash-latest" || !modelName) 
-      ? "gemini-1.5-flash-latest" 
+      ? "gemini-1.5-flash" 
       : modelName;
     
-    const model = ai.getGenerativeModel({ model: finalModelName });
-
-    const resultPacket = await model.generateContent(parts);
-    const response = await resultPacket.response;
-    const text = response.text();
-
-    if (!text) throw new Error("Empty response from AI");
-
-    res.json({ text });
+    try {
+      const model = ai.getGenerativeModel({ model: finalModelName });
+      const resultPacket = await model.generateContent(parts);
+      const response = await resultPacket.response;
+      const text = response.text();
+      if (!text) throw new Error("Empty response from AI");
+      res.json({ text });
+    } catch (error: any) {
+      if (error.message?.includes("404") || error.message?.includes("not found")) {
+        try {
+          const model = ai.getGenerativeModel({ model: "gemini-pro" });
+          const resultPacket = await model.generateContent(parts.filter((p: any) => p.text));
+          const response = await resultPacket.response;
+          const text = response.text();
+          return res.json({ text });
+        } catch (fallbackError) {
+          console.error("Fallback failed:", fallbackError);
+        }
+      }
+      throw error;
+    }
   } catch (error: any) {
     console.error("Gemini Proxy Error:", error);
     let message = error.message || "فشل الاتصال بـ Gemini API";
