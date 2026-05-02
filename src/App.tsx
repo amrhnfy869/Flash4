@@ -125,10 +125,8 @@ function AppContent() {
   const [sourceText, setSourceText] = useState<string>('');
   const [mode, setMode] = useState<'translate' | 'proofread' | 'transcribe'>('translate');
   const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioBase64, setAudioBase64] = useState<string | null>(null);
-  const recognitionRef = useRef<any>(null);
   const [history, setHistory] = useState<{ name: string; date: string; content: string }[]>([]);
   const [sourceLang, setSourceLang] = useState<string>('auto');
   const [targetLang, setTargetLang] = useState<string>('ar');
@@ -187,13 +185,15 @@ function AppContent() {
 
     setAudioFile(file);
     setIsLoading(true);
+    setError(null);
 
     try {
       const reader = new FileReader();
       reader.onload = () => {
         const base64 = (reader.result as string).split(',')[1];
         setAudioBase64(base64);
-        setIsLoading(false);
+        // بدء التفريغ تلقائياً بمجرد اكتمال القراءة
+        translateSourceText(base64);
       };
       reader.readAsDataURL(file);
     } catch (err) {
@@ -207,14 +207,15 @@ function AppContent() {
     setAudioBase64(null);
   };
 
-  const translateSourceText = async () => {
-    if (!sourceText.trim() && !audioBase64) return;
+  const translateSourceText = async (directBase64?: string) => {
+    const activeBase64 = directBase64 || audioBase64;
+    
+    if (!sourceText.trim() && !activeBase64) return;
     setIsLoading(true);
     setError(null);
     setResult('');
     try {
       const genAI = getGenAI();
-      const model = (genAI as any).getGenerativeModel({ model: "gemini-1.5-flash" });
       
       let promptText = "";
       let parts: any[] = [];
@@ -229,12 +230,12 @@ function AppContent() {
         parts.push({ text: promptText });
       } else {
         // Transcribe mode
-        if (audioBase64) {
+        if (activeBase64) {
           promptText = `Please transcribe and summarize this audio file accurately. If it's a lecture or meeting, provide a well-formatted summary. If it's short, just provide the transcription. Respond in Arabic unless the audio is exclusively in another language. Provide ONLY the result text.`;
           parts.push({ text: promptText });
           parts.push({
             inlineData: {
-              data: audioBase64,
+              data: activeBase64,
               mimeType: audioFile?.type || 'audio/mpeg'
             }
           });
@@ -244,8 +245,11 @@ function AppContent() {
         }
       }
 
-      const response = await model.generateContent(parts);
-      const outputText = response.response.text();
+      const response = await (genAI as any).models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: { parts }
+      });
+      const outputText = response.text;
       
       if (!outputText) throw new Error(mode === 'translate' ? "فشل الحصول على ترجمة." : "فشل معالجة النص.");
       setResult(outputText);
@@ -304,64 +308,6 @@ function AppContent() {
       window.localStorage.setItem('faseeh_theme', 'light');
     }
   }, [isDarkMode]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = true;
-        recognitionRef.current.interimResults = true;
-        recognitionRef.current.lang = 'ar-SA'; // Default to Arabic
-
-        recognitionRef.current.onresult = (event: any) => {
-          let interimTranscript = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              setSourceText(prev => prev + event.results[i][0].transcript);
-            } else {
-              interimTranscript += event.results[i][0].transcript;
-            }
-          }
-        };
-
-        recognitionRef.current.onerror = (event: any) => {
-          console.error('Speech recognition error', event.error);
-          setIsRecording(false);
-          if (event.error === 'not-allowed') {
-            setError(
-              <div className="flex flex-col gap-2">
-                <span>يرجى السماح بالوصول إلى الميكروفون من إعدادات المتصفح.</span>
-                <span className="text-xs">إذا كنت تستخدم التطبيق داخل معاينة، جرب فتحه في <a href={window.location.href} target="_blank" rel="noopener noreferrer" className="underline font-bold">نافذة جديدة</a>.</span>
-              </div>
-            );
-          } else {
-            setError(`خطأ في التعرف على الصوت: ${event.error}`);
-          }
-        };
-
-        recognitionRef.current.onend = () => {
-          setIsRecording(false);
-        };
-      }
-    }
-  }, []);
-
-  const toggleRecording = () => {
-    if (!recognitionRef.current) {
-      setError('عذراً، متصفحك لا يدعم ميزة التعرف على الصوت.');
-      return;
-    }
-
-    if (isRecording) {
-      recognitionRef.current.stop();
-    } else {
-      setSourceText('');
-      setError(null);
-      recognitionRef.current.start();
-      setIsRecording(true);
-    }
-  };
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
@@ -745,12 +691,12 @@ function AppContent() {
                         <h3 className="font-bold text-brand-text-heading text-xl">
                           {mode === 'translate' ? 'ترجمة النص المباشر' : 
                            mode === 'proofread' ? 'التدقيق اللغوي الذكي' : 
-                           'التفريغ الصوتي الفوري'}
+                           'التفريغ الصوتي الذكي'}
                         </h3>
                         <p className="text-xs text-brand-text-muted font-medium">
                           {mode === 'translate' ? 'اكتب أو الصق ما تريد ترجمته بالأسفل' : 
                            mode === 'proofread' ? 'اكتب أو الصق النص الذي ترغب في تدقيقه' :
-                           'اضغط على الزر للتحدث وسنقوم بكتابة كل ما تقوله'}
+                           'قم برفع ملف صوتي أو كتابة مسودة للحصول على تفريغ منسق'}
                         </p>
                       </div>
                     </div>
@@ -771,19 +717,6 @@ function AppContent() {
                           <Upload className="w-5 h-5" />
                           رفع ملف صوتي
                         </label>
-
-                        <button
-                          onClick={toggleRecording}
-                          className={cn(
-                            "flex items-center gap-3 px-6 py-4 rounded-2xl transition-all font-bold text-sm shadow-lg",
-                            isRecording 
-                              ? "bg-red-500 text-white animate-pulse shadow-red-500/20" 
-                              : "bg-brand-primary text-white hover:bg-brand-primary-hover shadow-brand-primary/20"
-                          )}
-                        >
-                          {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                          {isRecording ? 'إيقاف التسجيل' : 'بدء التحدث'}
-                        </button>
                       </div>
                     )}
                   </div>
@@ -825,7 +758,7 @@ function AppContent() {
                     dir="auto"
                   />
                   <button
-                    onClick={translateSourceText}
+                    onClick={() => translateSourceText()}
                     disabled={!sourceText.trim() || isLoading}
                     className="w-full bg-brand-primary text-white py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 hover:bg-brand-primary-hover transition-all shadow-xl shadow-brand-primary/20 disabled:opacity-50 active:scale-95"
                   >
