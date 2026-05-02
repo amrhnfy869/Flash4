@@ -99,17 +99,16 @@ function useAuth() {
 
 // --- AI Service ---
 const getGenAI = () => {
-  // Try to get the API key from various possible sources
+  // Try to get the API key from environment variables
   const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
                  (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-                 (import.meta as any).env?.GEMINI_API_KEY ||
-                 "AIzaSyC7vpweShVSGpMHwPUIhhh4TV7TlJlgrac"; // Fallback key provided by user
+                 (import.meta as any).env?.GEMINI_API_KEY;
 
   if (!apiKey || apiKey === "undefined" || apiKey === "null" || apiKey.trim() === "") {
     throw new Error("عذراً، مفتاح API غير موجود. يرجى التأكد من إعداد GEMINI_API_KEY في إعدادات البيئة الخاصة بك.");
   }
   
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI(apiKey);
 };
 
 // --- Main Components ---
@@ -247,7 +246,7 @@ function AppContent() {
         }
       }
 
-      const response = await (genAI as any).models.generateContent({
+      const response = await genAI.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: { parts }
       });
