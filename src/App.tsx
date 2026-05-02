@@ -25,7 +25,6 @@ import {
   Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI } from "@google/genai";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -95,19 +94,20 @@ function useAuth() {
   return context;
 }
 
-// --- AI Service ---
-const getGenAI = () => {
-  // Try to get the API key from various possible sources
-  const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
-                 (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-                 (import.meta as any).env?.GEMINI_API_KEY ||
-                 "AIzaSyC7vpweShVSGpMHwPUIhhh4TV7TlJlgrac"; // Fallback key provided by user
-
-  if (!apiKey || apiKey === "undefined" || apiKey === "null" || apiKey.trim() === "") {
-    throw new Error("عذراً، مفتاح API غير موجود. يرجى التأكد من إعداد GEMINI_API_KEY في إعدادات البيئة الخاصة بك.");
+// --- AI Service (Handled by Backend) ---
+const translateWithAI = async (model: string, contents: any) => {
+  const response = await fetch("/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, contents }),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || "خطأ في الاتصال بالخادم.");
   }
   
-  return new GoogleGenAI({ apiKey });
+  return await response.json();
 };
 
 // --- Main Components ---
@@ -215,8 +215,6 @@ function AppContent() {
     setError(null);
     setResult('');
     try {
-      const genAI = getGenAI();
-      
       let promptText = "";
       let parts: any[] = [];
 
@@ -245,10 +243,7 @@ function AppContent() {
         }
       }
 
-      const response = await (genAI as any).models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: { parts }
-      });
+      const response = await translateWithAI("gemini-2.0-flash", { parts });
       const outputText = response.text;
       
       if (!outputText) throw new Error(mode === 'translate' ? "فشل الحصول على ترجمة." : "فشل معالجة النص.");
@@ -256,13 +251,7 @@ function AppContent() {
       addToHistory(mode === 'translate' ? "ترجمة نص" : mode === 'proofread' ? "تدقيق لغوي" : "تفريغ صوتي", outputText);
     } catch (err: any) {
       console.error("Gemini Error:", err);
-      let userFriendlyError = "حدث خطأ غير متوقع.";
-      if (err.message?.includes("API key")) {
-        userFriendlyError = "خطأ في مفتاح API. يرجى التأكد من صلاحية المفتاح المستخدم.";
-      } else if (err.message?.includes("quota")) {
-        userFriendlyError = "تم تجاوز حصة الاستخدام المتاحة. يرجى المحاولة لاحقاً.";
-      }
-      setError(err.message || userFriendlyError);
+      setError(err.message || "حدث خطأ غير متوقع.");
     } finally {
       setIsLoading(false);
     }
