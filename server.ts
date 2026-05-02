@@ -22,11 +22,11 @@ async function startServer() {
   
   function getGenAI() {
     if (!genAI) {
-      const apiKey = process.env.GEMINI_API_KEY || "AIzaSyATOY16mBdvpYRVuXwvGNp6k3OgFS5N4Jg";
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey || apiKey === "undefined") {
-        throw new Error("GEMINI_API_KEY is not defined in environment secrets.");
+        throw new Error("GEMINI_API_KEY is not defined in environment secrets. Please add it to the Secrets panel.");
       }
-      // @ts-ignore - The SDK types can be tricky depending on the environment
+      // @ts-ignore
       genAI = new GoogleGenAI(apiKey);
     }
     return genAI;

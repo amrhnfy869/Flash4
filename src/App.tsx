@@ -693,6 +693,7 @@ function AppContent() {
                     <div className="space-y-2">
                       <h3 className="text-2xl font-bold text-brand-text-heading italic">جاري معالجة المحتوى...</h3>
                       <p className="text-brand-text-muted font-medium">فلاش يستخدم أحدث تقنيات الذكاء الاصطناعي لخدمتك</p>
+                      <p className="text-[12px] font-bold text-brand-primary animate-pulse mt-2">الوقت التقريبي: 5 - 10 ثوانٍ</p>
                     </div>
                   </div>
                   
