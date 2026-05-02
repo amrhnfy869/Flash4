@@ -84,19 +84,27 @@ async function setupServer() {
     const distPath = path.resolve(__dirname, "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      if (req.url.startsWith("/api/")) return;
+      // If it's an API route that reached here, return 404 instead of index.html
+      if (req.path.startsWith("/api/")) {
+        return res.status(404).json({ error: "API Route not found" });
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 }
 
-async function startServer() {
-  await setupServer();
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-  });
-}
+// Check if we are in a serverless environment (like Vercel)
+const isServerless = !!process.env.VERCEL;
 
-startServer();
+if (!isServerless) {
+  setupServer().then(() => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+    });
+  });
+} else {
+  // On Vercel, setup middleware synchronously
+  setupServer();
+}
 
 export default app;
