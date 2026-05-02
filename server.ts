@@ -25,8 +25,7 @@ function getGenAI() {
   if (!genAI) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === "undefined" || apiKey === "") {
-        // Fallback or explicit error
-        throw new Error("GEMINI_API_KEY is not defined. Please add it to your environment variables.");
+        throw new Error("برجاء إضافة مفتاح الـ API في لوحة الـ Secrets باسم GEMINI_API_KEY");
     }
     // @ts-ignore
     genAI = new GoogleGenAI(apiKey);
