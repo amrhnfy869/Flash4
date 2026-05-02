@@ -108,7 +108,7 @@ const getGenAI = () => {
     throw new Error("عذراً، مفتاح API غير موجود. يرجى التأكد من إعداد GEMINI_API_KEY في إعدادات البيئة الخاصة بك.");
   }
   
-  return new GoogleGenAI(apiKey);
+  return new GoogleGenAI({ apiKey });
 };
 
 // --- Main Components ---
@@ -216,7 +216,7 @@ function AppContent() {
     setError(null);
     setResult('');
     try {
-      const genAI = getGenAI();
+      const ai = getGenAI();
       
       let promptText = "";
       let parts: any[] = [];
@@ -246,10 +246,11 @@ function AppContent() {
         }
       }
 
-      const response = await genAI.models.generateContent({
+      const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: { parts }
       });
+      
       const outputText = response.text;
       
       if (!outputText) throw new Error(mode === 'translate' ? "فشل الحصول على ترجمة." : "فشل معالجة النص.");
@@ -673,7 +674,7 @@ function AppContent() {
 
           {/* Translation Section */}
           <section className="w-full max-w-4xl mx-auto">
-            {!result && !error ? (
+            {!result && !error && (
               isLoading ? (
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
@@ -801,7 +802,7 @@ function AppContent() {
                   </button>
                 </motion.div>
               </div>
-            ) ) : null}
+            ))}
           </section>
 
           {/* Results Section */}
