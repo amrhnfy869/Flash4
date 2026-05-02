@@ -2,7 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
 import cors from "cors";
 
@@ -19,7 +19,7 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
 // Helper for lazy loading Gemini client
-let genAI: GoogleGenAI | null = null;
+let genAI: GoogleGenerativeAI | null = null;
 
 function getGenAI() {
   if (!genAI) {
@@ -27,8 +27,7 @@ function getGenAI() {
     if (!apiKey || apiKey === "undefined" || apiKey === "") {
         throw new Error("برجاء إضافة مفتاح الـ API في لوحة الـ Secrets باسم GEMINI_API_KEY");
     }
-    // @ts-ignore
-    genAI = new GoogleGenAI(apiKey);
+    genAI = new GoogleGenerativeAI(apiKey);
   }
   return genAI;
 }
@@ -49,7 +48,6 @@ app.post("/api/generate", async (req, res) => {
       ? "gemini-1.5-flash" 
       : modelName;
     
-    // @ts-ignore
     const model = ai.getGenerativeModel({ model: finalModelName });
 
     const resultPacket = await model.generateContent(parts);

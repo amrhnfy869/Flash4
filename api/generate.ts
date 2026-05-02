@@ -1,7 +1,7 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-let genAI: GoogleGenAI | null = null;
+let genAI: GoogleGenerativeAI | null = null;
 
 function getGenAI() {
   if (!genAI) {
@@ -9,8 +9,7 @@ function getGenAI() {
     if (!apiKey) {
       throw new Error("برجاء إضافة مفتاح الـ API في لوحة الـ Secrets باسم GEMINI_API_KEY");
     }
-    // @ts-ignore
-    genAI = new GoogleGenAI(apiKey);
+    genAI = new GoogleGenerativeAI(apiKey);
   }
   return genAI;
 }
@@ -41,7 +40,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? "gemini-1.5-flash" 
       : modelName;
     
-    // @ts-ignore
     const model = ai.getGenerativeModel({ model: finalModelName });
 
     const resultPacket = await model.generateContent(parts);
