@@ -22,9 +22,9 @@ async function startServer() {
   
   function getGenAI() {
     if (!genAI) {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || "AIzaSyATOY16mBdvpYRVuXwvGNp6k3OgFS5N4Jg";
       if (!apiKey || apiKey === "undefined") {
-        throw new Error("GEMINI_API_KEY is not defined in environment secrets. Please add it to the Secrets panel.");
+        throw new Error("GEMINI_API_KEY is not defined. Please add it to the Secrets panel.");
       }
       // @ts-ignore
       genAI = new GoogleGenAI(apiKey);
@@ -37,6 +37,7 @@ async function startServer() {
     try {
       const { model: modelName, parts } = req.body;
       const ai = getGenAI();
+      // Using gemini-1.5-flash which is the stable version of gemini-flash-latest
       // @ts-ignore
       const model = ai.getGenerativeModel({ model: modelName || "gemini-1.5-flash" });
 
