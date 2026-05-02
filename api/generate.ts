@@ -9,6 +9,7 @@ function getGenAI() {
     if (!apiKey) {
       throw new Error("برجاء إضافة مفتاح الـ API في لوحة الـ Secrets باسم GEMINI_API_KEY");
     }
+    // @ts-ignore
     genAI = new GoogleGenAI(apiKey);
   }
   return genAI;
@@ -16,7 +17,6 @@ function getGenAI() {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
@@ -41,6 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? "gemini-1.5-flash" 
       : modelName;
     
+    // @ts-ignore
     const model = ai.getGenerativeModel({ model: finalModelName });
 
     const resultPacket = await model.generateContent(parts);
