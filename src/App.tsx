@@ -25,6 +25,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI } from "@google/genai";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -94,21 +95,8 @@ function useAuth() {
   return context;
 }
 
-// --- AI Service (Handled by Backend) ---
-const translateWithAI = async (model: string, contents: any) => {
-  const response = await fetch("/api/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, contents }),
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "خطأ في الاتصال بالخادم.");
-  }
-  
-  return await response.json();
-};
+// --- AI Service (Direct Client-Side) ---
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 // --- Main Components ---
 
@@ -243,7 +231,10 @@ function AppContent() {
         }
       }
 
-      const response = await translateWithAI("gemini-2.0-flash", { parts });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: { parts }
+      });
       const outputText = response.text;
       
       if (!outputText) throw new Error(mode === 'translate' ? "فشل الحصول على ترجمة." : "فشل معالجة النص.");
