@@ -99,13 +99,12 @@ function useAuth() {
 
 // --- AI Service ---
 const getGenAI = () => {
-  // Try to get the API key from environment variables
-  const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
-                 (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-                 (import.meta as any).env?.GEMINI_API_KEY;
+  // للوصول الآمن لمفتاح API، نستخدم متغيرات البيئة. 
+  // تأكد من إضافة GEMINI_API_KEY في إعدادات Secrets في AI Studio.
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey || apiKey === "undefined" || apiKey === "null" || apiKey.trim() === "") {
-    throw new Error("عذراً، مفتاح API غير موجود. يرجى التأكد من إعداد GEMINI_API_KEY في إعدادات البيئة الخاصة بك.");
+    throw new Error("عذراً، مفتاح API غير موجود. يرجى التأكد من إعداد GEMINI_API_KEY في إعدادات البيئة (Secrets).");
   }
   
   return new GoogleGenAI({ apiKey });
