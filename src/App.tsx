@@ -340,7 +340,7 @@ function AppContent() {
             </div>
             <div className="space-y-4">
               <h2 className="text-3xl font-bold text-brand-text-heading italic leading-relaxed">بسم الله الرحمن الرحيم</h2>
-              <p className="text-brand-text-muted font-medium">مرحباً بك في فلاش - رفيقك الذكي للترجمة الفورية</p>
+              <p className="text-brand-text-muted font-medium">مرحباً بك في فلاش - رفيقك الذكي للترجمة، التدقيق، والتفريغ الصوتي</p>
             </div>
             <button 
               onClick={() => setShowWelcome(false)}
@@ -578,7 +578,7 @@ function AppContent() {
                 <span className="text-xs font-bold text-brand-primary tracking-widest uppercase italic">فلاش - خدمات لغوية ذكية</span>
               </motion.div>
               <h2 className="text-4xl md:text-6xl font-black text-brand-text-heading italic">
-                {mode === 'translate' ? 'ترجمة احترافية ذكية' : 'تدقيق لغوي فائق الذكاء'} <br/>
+                {mode === 'translate' ? 'ترجمة احترافية ذكية' : mode === 'proofread' ? 'تدقيق لغوي فائق الذكاء' : 'تفريغ صوتي ذكي ودقيق'} <br/>
                 <span className="text-brand-primary">في غمضة عين</span>
               </h2>
             </div>
@@ -866,7 +866,7 @@ function AppContent() {
                 </div>
                 <div>
                   <h4 className="font-bold text-brand-text-heading text-lg">خدمات متكاملة</h4>
-                  <p className="text-sm text-brand-text-muted">ترجمة احترافية وتدقيق لغوي دقيق في مكان واحد</p>
+                  <p className="text-sm text-brand-text-muted">ترجمة، تدقيق، وتفريغ صوتي ذكي في مكان واحد</p>
                 </div>
               </div>
               <div className="bg-brand-bg/40 p-8 rounded-[32px] border border-brand-border flex items-center gap-5 shadow-sm hover:translate-y-[-4px] transition-transform">
@@ -956,8 +956,8 @@ function AppContent() {
                   <Zap className="w-10 h-10 text-brand-primary" />
                 </div>
                 <div className="space-y-2">
-                  <h4 className="font-bold text-xl text-brand-text-heading">1. ادخل نصك</h4>
-                  <p className="text-brand-text-muted text-sm leading-relaxed">قم بكتابة أو لصق النص الذي ترغب في ترجمته أو تدقيقه في المربع المخصص.</p>
+                  <h4 className="font-bold text-xl text-brand-text-heading">1. ادخل محتواك</h4>
+                  <p className="text-brand-text-muted text-sm leading-relaxed">قم بكتابة النص أو رفع ملف صوتي ترغب في ترجمته أو تدقيقه أو تفريغه.</p>
                 </div>
               </div>
 
@@ -967,7 +967,7 @@ function AppContent() {
                 </div>
                 <div className="space-y-2">
                   <h4 className="font-bold text-xl text-brand-text-heading">2. اختر الخدمة</h4>
-                  <p className="text-brand-text-muted text-sm leading-relaxed">حدد ما إذا كنت ترغب في الترجمة بين اللغات أو التدقيق اللغوي للنص.</p>
+                  <p className="text-brand-text-muted text-sm leading-relaxed">حدد الأداة المناسبة: الترجمة الاحترافية، التدقيق اللغوي، أو التفريغ الصوتي.</p>
                 </div>
               </div>
 
@@ -977,7 +977,7 @@ function AppContent() {
                 </div>
                 <div className="space-y-2">
                   <h4 className="font-bold text-xl text-brand-text-heading">3. استلم النتيجة</h4>
-                  <p className="text-brand-text-muted text-sm leading-relaxed">بضغطة زر واحدة ستحصل على نتيجة احترافية فورية لنصك.</p>
+                  <p className="text-brand-text-muted text-sm leading-relaxed">بضغطة زر واحدة ستحصل على معالجة ذكية فورية لمحتواك بلمسة فلاش.</p>
                 </div>
               </div>
             </div>
