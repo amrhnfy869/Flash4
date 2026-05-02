@@ -43,9 +43,9 @@ app.post("/api/generate", async (req, res) => {
     const { model: modelName, parts } = req.body;
     const ai = getGenAI();
     
-    // Use gemini-1.5-flash as the standard stable model
+    // Use gemini-1.5-flash-latest for better compatibility
     const finalModelName = (modelName === "gemini-flash-latest" || !modelName) 
-      ? "gemini-1.5-flash" 
+      ? "gemini-1.5-flash-latest" 
       : modelName;
     
     const model = ai.getGenerativeModel({ model: finalModelName });

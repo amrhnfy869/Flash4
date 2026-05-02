@@ -37,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ai = getGenAI();
     
     const finalModelName = (modelName === "gemini-flash-latest" || !modelName) 
-      ? "gemini-1.5-flash" 
+      ? "gemini-1.5-flash-latest" 
       : modelName;
     
     const model = ai.getGenerativeModel({ model: finalModelName });
