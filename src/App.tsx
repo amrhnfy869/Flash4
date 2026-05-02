@@ -29,6 +29,8 @@ import { GoogleGenAI } from "@google/genai";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import { AdBanner } from './components/AdBanner';
+
 // --- Utilities ---
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -672,8 +674,32 @@ function AppContent() {
 
           {/* Translation Section */}
           <section className="w-full max-w-4xl mx-auto">
-            {!result && !isLoading && !error ? (
-              <div className="w-full">
+            {!result && !error ? (
+              isLoading ? (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-brand-bg/60 backdrop-blur-sm border border-brand-border/30 rounded-[40px] p-8 md:p-12 space-y-12 flex flex-col items-center justify-center shadow-lg min-h-[500px]"
+                >
+                  <div className="flex flex-col items-center space-y-6 text-center">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-brand-primary/20 blur-2xl rounded-full animate-pulse" />
+                      <Loader2 className="w-20 h-20 animate-spin text-brand-primary relative" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-2xl font-bold text-brand-text-heading italic">جاري معالجة المحتوى...</h3>
+                      <p className="text-brand-text-muted font-medium">فلاش يستخدم أحدث تقنيات الذكاء الاصطناعي لخدمتك</p>
+                    </div>
+                  </div>
+                  
+                  {/* الإعلان يظهر هنا أثناء التحميل فقط */}
+                  <div className="w-full flex flex-col items-center gap-4">
+                    <p className="text-[10px] font-bold text-brand-text-muted uppercase tracking-widest">إعلان</p>
+                    <AdBanner />
+                  </div>
+                </motion.div>
+              ) : (
+                <div className="w-full">
                 {/* Direct Text Translation */}
                 <motion.div 
                    initial={{ opacity: 0, y: 20 }}
@@ -763,7 +789,10 @@ function AppContent() {
                     className="w-full bg-brand-primary text-white py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 hover:bg-brand-primary-hover transition-all shadow-xl shadow-brand-primary/20 disabled:opacity-50 active:scale-95"
                   >
                     {isLoading ? (
-                      <Loader2 className="w-6 h-6 animate-spin text-white" />
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="w-6 h-6 animate-spin text-white" />
+                        <span className="text-[10px] opacity-70 font-medium">الوقت التقريبي: 5 - 10 ثوانٍ</span>
+                      </div>
                     ) : (
                       <>
                         <Wand2 className="w-6 h-6" />
@@ -773,7 +802,7 @@ function AppContent() {
                   </button>
                 </motion.div>
               </div>
-            ) : null}
+            ) ) : null}
           </section>
 
           {/* Results Section */}
