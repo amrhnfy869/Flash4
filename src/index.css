@@ -1,17 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   --font-sans: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
   
-  --color-brand-primary: #E60000;
-  --color-brand-primary-hover: #CC0000;
-  --color-brand-bg: #FFFFFF;
-  --color-brand-text-heading: #1A1A1A;
-  --color-brand-text-body: #333333;
-  --color-brand-text-muted: #666666;
-  --color-brand-border: #EEEEEE;
-  --color-brand-accent: #FFF1F1;
+  --color-brand-primary: #FF5722;
+  --color-brand-primary-hover: #E64A19;
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-text-heading: var(--brand-text-heading);
+  --color-brand-text-body: var(--brand-text-body);
+  --color-brand-text-muted: var(--brand-text-muted);
+  --color-brand-border: var(--brand-border);
+  --color-brand-accent: var(--brand-accent);
 }
 
 @layer base {
@@ -21,7 +22,7 @@
     --brand-text-body: #333333;
     --brand-text-muted: #666666;
     --brand-border: #EEEEEE;
-    --brand-accent: #FFF1F1;
+    --brand-accent: #FFF8F6;
   }
 
   .dark {
@@ -30,7 +31,7 @@
     --brand-text-body: #E0E0E0;
     --brand-text-muted: #A0A0A0;
     --brand-border: #262626;
-    --brand-accent: #1A0000;
+    --brand-accent: #1A0B05;
   }
 
   body {
@@ -39,13 +40,24 @@
   }
 }
 
-@theme inline {
-  --color-brand-bg: var(--brand-bg);
-  --color-brand-text-heading: var(--brand-text-heading);
-  --color-brand-text-body: var(--brand-text-body);
-  --color-brand-text-muted: var(--brand-text-muted);
-  --color-brand-border: var(--brand-border);
-  --color-brand-accent: var(--brand-accent);
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-200 dark:bg-gray-800 rounded-full;
+  }
 }
 
 html {
