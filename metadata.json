@@ -1,6 +1,7 @@
 {
-  "name": "فلاش",
-  "description": "منصة ذكية للترجمة الاحترافية، التدقيق اللغوي، والتفريغ الصوتي الفوري باستخدام تقنيات الذكاء الاصطناعي.",
-  "requestFramePermissions": ["microphone"],
-  "majorCapabilities": []
+  "name": "فلاش - Faseeh",
+  "description": "منصة ذكية للترجمة الاحترافية، التدقيق اللغوي، والتفريغ الصوتي المدعوم بالذكاء الاصطناعي.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

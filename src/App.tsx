@@ -58,9 +58,14 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = window.localStorage.getItem('faseeh_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    try {
+      const savedUser = window.localStorage.getItem('faseeh_user');
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
+    } catch (e) {
+      console.error("Error parsing user:", e);
+      window.localStorage.removeItem('faseeh_user');
     }
     setLoading(false);
   }, []);
@@ -131,9 +136,14 @@ function AppContent() {
   ];
 
   useEffect(() => {
-    const savedHistory = window.localStorage.getItem('faseeh_history');
-    if (savedHistory) {
-      setHistory(JSON.parse(savedHistory));
+    try {
+      const savedHistory = window.localStorage.getItem('faseeh_history');
+      if (savedHistory) {
+        setHistory(JSON.parse(savedHistory));
+      }
+    } catch (e) {
+      console.error("Error parsing history:", e);
+      window.localStorage.removeItem('faseeh_history');
     }
   }, []);
 
