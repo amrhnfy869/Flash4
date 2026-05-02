@@ -11,71 +11,69 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = Number(process.env.PORT) || 3000;
 
-  // Middleware
-  app.use(cors());
-  app.use(express.json({ limit: "20mb" }));
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: "20mb" }));
 
-  // Request logging
-  app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-    next();
-  });
+// Helper for lazy loading Gemini client
+let genAI: GoogleGenAI | null = null;
 
-  // Helper for lazy loading Gemini client
-  let genAI: GoogleGenAI | null = null;
-  
-  function getGenAI() {
-    if (!genAI) {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey || apiKey === "undefined") {
-        throw new Error("GEMINI_API_KEY is not defined. Please add it to the Secrets panel.");
-      }
-      // @ts-ignore
-      genAI = new GoogleGenAI(apiKey);
+function getGenAI() {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "undefined" || apiKey === "") {
+        // Fallback or explicit error
+        throw new Error("GEMINI_API_KEY is not defined. Please add it to your environment variables.");
     }
-    return genAI;
+    // @ts-ignore
+    genAI = new GoogleGenAI(apiKey);
   }
+  return genAI;
+}
 
-  // Health check
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", mode: process.env.NODE_ENV || "development" });
-  });
+// Health check
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", mode: process.env.NODE_ENV || "development" });
+});
 
-  // API Proxy Route for Gemini AI
-  app.post("/api/generate", async (req, res) => {
-    console.log("Processing Generation Request...");
-    try {
-      const { model: modelName, parts } = req.body;
-      const ai = getGenAI();
-      
-      // Map 'gemini-flash-latest' to 'gemini-1.5-flash'
-      const finalModelName = (modelName === "gemini-flash-latest") ? "gemini-1.5-flash" : (modelName || "gemini-1.5-flash");
-      
-      // @ts-ignore
-      const model = ai.getGenerativeModel({ model: finalModelName });
+// API Proxy Route for Gemini AI
+app.post("/api/generate", async (req, res) => {
+  try {
+    const { model: modelName, parts } = req.body;
+    const ai = getGenAI();
+    
+    // Use gemini-1.5-flash as the standard stable model
+    const finalModelName = (modelName === "gemini-flash-latest" || !modelName) 
+      ? "gemini-1.5-flash" 
+      : modelName;
+    
+    // @ts-ignore
+    const model = ai.getGenerativeModel({ model: finalModelName });
 
-      const resultPacket = await model.generateContent(parts);
-      const response = await resultPacket.response;
-      const text = response.text();
+    const resultPacket = await model.generateContent(parts);
+    const response = await resultPacket.response;
+    const text = response.text();
 
-      res.json({ text });
-    } catch (error: any) {
-      console.error("Gemini Proxy Error:", error);
-      let message = error.message || "فشل الاتصال بـ Gemini API عبر الخادم";
-      
-      if (message.includes("leaked")) {
-        message = "عذراً، مفتاح API هذا تم الإبلاغ عن تسريبه وهو غير صالح الآن. يرجى إنشاء مفتاح جديد من Google AI Studio ووضعه في إعدادات البيئة (Secrets).";
-      }
-      
-      res.status(500).json({ error: message });
+    if (!text) throw new Error("Empty response from AI");
+
+    res.json({ text });
+  } catch (error: any) {
+    console.error("Gemini Proxy Error:", error);
+    let message = error.message || "فشل الاتصال بـ Gemini API";
+    
+    if (message.includes("API key not valid")) {
+      message = "خطأ: مفتاح API غير صالح. يرجى التحقق من الإعدادات.";
     }
-  });
+    
+    res.status(500).json({ error: message });
+  }
+});
 
-  // Vite integration
+// Setup logic for serving frontend
+async function setupServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -83,18 +81,22 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = path.resolve(__dirname, "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
+      if (req.url.startsWith("/api/")) return;
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+}
 
+async function startServer() {
+  await setupServer();
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
   });
 }
 
-startServer().catch(err => {
-  console.error("Failed to start server:", err);
-});
+startServer();
+
+export default app;
