@@ -32,14 +32,23 @@ async function startServer() {
     return genAI;
   }
 
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", mode: process.env.NODE_ENV || "development" });
+  });
+
   // API Proxy Route for Gemini AI
   app.post("/api/generate", async (req, res) => {
+    console.log("Processing Generation Request...");
     try {
       const { model: modelName, parts } = req.body;
       const ai = getGenAI();
-      // Using gemini-1.5-flash which is the stable version of gemini-flash-latest
+      
+      // Map 'gemini-flash-latest' to 'gemini-1.5-flash'
+      const finalModelName = (modelName === "gemini-flash-latest") ? "gemini-1.5-flash" : (modelName || "gemini-1.5-flash");
+      
       // @ts-ignore
-      const model = ai.getGenerativeModel({ model: modelName || "gemini-1.5-flash" });
+      const model = ai.getGenerativeModel({ model: finalModelName });
 
       const resultPacket = await model.generateContent(parts);
       const response = await resultPacket.response;
@@ -48,7 +57,13 @@ async function startServer() {
       res.json({ text });
     } catch (error: any) {
       console.error("Gemini Proxy Error:", error);
-      res.status(500).json({ error: error.message || "فشل الاتصال بـ Gemini API عبر الخادم" });
+      let message = error.message || "فشل الاتصال بـ Gemini API عبر الخادم";
+      
+      if (message.includes("leaked")) {
+        message = "عذراً، مفتاح API هذا تم الإبلاغ عن تسريبه وهو غير صالح الآن. يرجى إنشاء مفتاح جديد من Google AI Studio ووضعه في إعدادات البيئة (Secrets).";
+      }
+      
+      res.status(500).json({ error: message });
     }
   });
 

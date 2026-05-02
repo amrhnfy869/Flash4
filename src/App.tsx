@@ -111,8 +111,15 @@ const callGeminiAPI = async (parts: any[], modelName: string = "gemini-1.5-flash
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `خطأ في الخادم: ${response.status}`);
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `خطأ في الخادم: ${response.status}`);
+      } else {
+        const errorText = await response.text();
+        console.error("Non-JSON error response:", errorText);
+        throw new Error(`خطأ غير متوقع من الخادم (${response.status}). يرجى المحاولة لاحقاً.`);
+      }
     }
 
     const data = await response.json();
