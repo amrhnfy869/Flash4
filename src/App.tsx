@@ -28,8 +28,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-import { AdBanner } from './components/AdBanner';
-
 // --- Utilities ---
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -702,12 +700,6 @@ function AppContent() {
                       <p className="text-brand-text-muted font-medium">فلاش يستخدم أحدث تقنيات الذكاء الاصطناعي لخدمتك</p>
                       <p className="text-[12px] font-bold text-brand-primary animate-pulse mt-2">الوقت التقريبي: 5 - 10 ثوانٍ</p>
                     </div>
-                  </div>
-                  
-                  {/* الإعلان يظهر هنا أثناء التحميل فقط */}
-                  <div className="w-full flex flex-col items-center gap-4">
-                    <p className="text-[10px] font-bold text-brand-text-muted uppercase tracking-widest">إعلان</p>
-                    <AdBanner />
                   </div>
                 </motion.div>
               ) : (

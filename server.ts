@@ -19,54 +19,17 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
 // Helper for lazy loading Gemini client
-async function getGeminiResponse(parts: any[], modelName: string) {
-  const apiKey = process.env.GEMINI_API_KEY || "AIzaSyCScbL2jQ8a5PBmuF63C1rw4wuT15Qq5nI";
-  const finalModelName = modelName === "gemini-flash-latest" || !modelName ? "gemini-1.5-flash" : modelName;
+let genAI: GoogleGenerativeAI | null = null;
 
-  // Use v1 instead of v1beta as requested
-  const url = `https://generativelanguage.googleapis.com/v1/models/${finalModelName}:generateContent?key=${apiKey}`;
-
-  const requestBody = {
-    contents: [
-      {
-        parts: parts.map(p => {
-          if (p.inlineData) {
-            return {
-              inline_data: {
-                mime_type: p.inlineData.mimeType,
-                data: p.inlineData.data
-              }
-            };
-          }
-          return p;
-        })
-      }
-    ],
-    generationConfig: {
-      temperature: 0.7,
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: 2048,
+function getGenAI() {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "undefined" || apiKey === "") {
+        throw new Error("برجاء إضافة مفتاح الـ API في لوحة الـ Secrets باسم GEMINI_API_KEY");
     }
-  };
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody)
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.error?.message || `Gemini API error: ${response.status}`);
+    genAI = new GoogleGenerativeAI(apiKey);
   }
-
-  const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("لم يتم استلام رد من الذكاء الاصطناعي");
-  return text;
+  return genAI;
 }
 
 // Health check
@@ -78,8 +41,34 @@ app.get("/api/health", (req, res) => {
 app.post("/api/generate", async (req, res) => {
   try {
     const { model: modelName, parts } = req.body;
-    const text = await getGeminiResponse(parts, modelName);
-    res.json({ text });
+    const ai = getGenAI();
+    
+    // Use gemini-1.5-flash as the standard stable model
+    const finalModelName = (modelName === "gemini-flash-latest" || !modelName) 
+      ? "gemini-1.5-flash" 
+      : modelName;
+    
+    try {
+      const model = ai.getGenerativeModel({ model: finalModelName });
+      const resultPacket = await model.generateContent(parts);
+      const response = await resultPacket.response;
+      const text = response.text();
+      if (!text) throw new Error("Empty response from AI");
+      res.json({ text });
+    } catch (error: any) {
+      if (error.message?.includes("404") || error.message?.includes("not found")) {
+        try {
+          const model = ai.getGenerativeModel({ model: "gemini-pro" });
+          const resultPacket = await model.generateContent(parts.filter((p: any) => p.text));
+          const response = await resultPacket.response;
+          const text = response.text();
+          return res.json({ text });
+        } catch (fallbackError) {
+          console.error("Fallback failed:", fallbackError);
+        }
+      }
+      throw error;
+    }
   } catch (error: any) {
     console.error("Gemini Proxy Error:", error);
     let message = error.message || "فشل الاتصال بـ Gemini API";
