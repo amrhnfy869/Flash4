@@ -25,7 +25,6 @@ import {
   Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI } from "@google/genai";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -97,17 +96,30 @@ function useAuth() {
   return context;
 }
 
-// --- AI Service ---
-const getGenAI = () => {
-  // للوصول الآمن لمفتاح API، نستخدم متغيرات البيئة. 
-  // تأكد من إضافة GEMINI_API_KEY في إعدادات Secrets في AI Studio.
-  const apiKey = process.env.GEMINI_API_KEY;
+// --- AI Service (Backend Proxy) ---
+const callGeminiAPI = async (parts: any[], modelName: string = "gemini-1.5-flash") => {
+  try {
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: modelName,
+        parts: parts
+      }),
+    });
 
-  if (!apiKey || apiKey === "undefined" || apiKey === "null" || apiKey.trim() === "") {
-    throw new Error("عذراً، مفتاح API غير موجود. يرجى التأكد من إعداد GEMINI_API_KEY في إعدادات البيئة (Secrets).");
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `خطأ في الخادم: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.text;
+  } catch (error: any) {
+    throw error;
   }
-  
-  return new GoogleGenAI({ apiKey });
 };
 
 // --- Main Components ---
@@ -215,8 +227,6 @@ function AppContent() {
     setError(null);
     setResult('');
     try {
-      const ai = getGenAI();
-      
       let promptText = "";
       let parts: any[] = [];
 
@@ -245,12 +255,7 @@ function AppContent() {
         }
       }
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: { parts }
-      });
-      
-      const outputText = response.text;
+      const outputText = await callGeminiAPI(parts, "gemini-1.5-flash");
       
       if (!outputText) throw new Error(mode === 'translate' ? "فشل الحصول على ترجمة." : "فشل معالجة النص.");
       setResult(outputText);
